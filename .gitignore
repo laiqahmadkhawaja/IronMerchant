@@ -1,0 +1,7 @@
+# Environment / credentials if separate
+*.log
+*.tmp
+storage/backups/*.sql
+storage/backups/*.gz
+.DS_Store
+Thumbs.db

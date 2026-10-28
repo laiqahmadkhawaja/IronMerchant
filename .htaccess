@@ -1,0 +1,18 @@
+# Apache 2.4 Configuration for Zafar Brothers Iron Merchants
+DirectoryIndex index.php index.html
+
+# Disable directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "(^\.env|\.git|\.sql|\.log|composer\.json|composer\.lock)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        <IfModule mod_access_compat.c>
+            Order allow,deny
+            Deny from all
+        </IfModule>
+    </IfModule>
+</FilesMatch>
