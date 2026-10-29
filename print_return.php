@@ -60,6 +60,15 @@ $isThermal = ($size === '80' || $size === '58');
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     @font-face {
+      font-family: 'Alvi Nastaleeq';
+      src: local('Alvi Nastaleeq'),
+           local('Alvi-Nastaleeq'),
+           url('assets/fonts/Alvi-Nastaleeq.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
       font-family: 'Agency FB';
       src: url('assets/fonts/Agency-FB-Regular.ttf') format('truetype'),
            url('assets/fonts/Agency%20FB%20Regular.ttf') format('truetype');
@@ -70,13 +79,13 @@ $isThermal = ($size === '80' || $size === '58');
     body {
       background: #718096;
       color: #0f172a;
-      font-family: 'Sora', system-ui, sans-serif;
+      font-family: 'Sora', 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', system-ui, sans-serif;
       margin: 0;
       padding: 16px 8px;
     }
     .ur {
-      font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif;
-      line-height: 1.8;
+      font-family: 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif;
+      line-height: 2.0;
       direction: rtl;
     }
     .font-num {
@@ -157,9 +166,9 @@ $isThermal = ($size === '80' || $size === '58');
     }
 
     .thermal-receipt .ur {
-      font-family: 'Agency FB', 'Noto Nastaliq Urdu', Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+      font-family: 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', Arial, "Helvetica Neue", Helvetica, sans-serif !important;
       font-weight: 700 !important;
-      line-height: 1.85 !important;
+      line-height: 2.0 !important;
       direction: rtl;
     }
 

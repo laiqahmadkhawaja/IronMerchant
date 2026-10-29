@@ -1,7 +1,17 @@
 /* assets/css/style.css - Zafar Brothers Iron Merchants Management System */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Sora:wght@400;500;600;700&display=swap');
 
-/* Server-Hosted Local Font (Agency FB) */
+/* Server-Hosted Local Fonts (Alvi Nastaleeq & Agency FB) */
+@font-face {
+  font-family: 'Alvi Nastaleeq';
+  src: local('Alvi Nastaleeq'),
+       local('Alvi-Nastaleeq'),
+       url('../fonts/Alvi-Nastaleeq.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @font-face {
   font-family: 'Agency FB';
   src: url('../fonts/Agency-FB-Regular.ttf') format('truetype'),
@@ -29,9 +39,9 @@
 body {
   background-color: var(--bg);
   color: var(--tx);
-  font-family: 'Sora', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Sora', 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13.5px;
-  line-height: 1.4;
+  line-height: 1.5;
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -39,33 +49,35 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  line-height: 1.25 !important;
+  line-height: 1.5 !important;
+  overflow: visible;
 }
 
-/* Urdu Typography with Agency FB Priority & balanced line-height */
-.ur, [dir="rtl"], [lang="ur"] {
-  font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif !important;
-  line-height: 1.35 !important;
+/* Urdu Typography with Alvi Nastaleeq Priority & Generous Line-Height (Zero Clipping) */
+.ur, [dir="rtl"], .urdu, span[lang="ur"], p[lang="ur"] {
+  font-family: 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif !important;
+  line-height: 2.0 !important;
   direction: rtl;
 }
 
 /* Form Controls - NO OVERLAPPING GUARANTEE & CRISP LINE-HEIGHT */
 .form-label {
   display: block !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
   color: #334155 !important;
-  margin-bottom: 4px !important;
-  line-height: 1.3 !important;
+  margin-bottom: 6px !important;
+  line-height: 1.6 !important;
+  overflow: visible;
 }
 
 .form-control, .form-select {
   display: block;
   width: 100%;
-  min-height: 42px !important;
-  padding: 6px 12px !important;
+  min-height: 44px !important;
+  padding: 8px 12px !important;
   font-size: 13.5px !important;
-  line-height: 1.35 !important;
+  line-height: 1.5 !important;
   color: var(--tx) !important;
   background-color: #fff !important;
   border: 1px solid var(--bd) !important;
@@ -81,7 +93,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 textarea.form-control {
-  min-height: 75px !important;
+  min-height: 80px !important;
+  line-height: 1.6 !important;
   resize: vertical;
 }
 
@@ -181,14 +194,18 @@ textarea.form-control {
 
 /* Select tag Urdu support */
 select.form-select option {
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
   font-size: 13.5px !important;
-  line-height: 1.35 !important;
+  line-height: 1.5 !important;
 }
 
 /* Buttons */
 .btn {
-  line-height: 1.35 !important;
+  line-height: 1.5 !important;
+  min-height: 40px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-zb-primary {
   background: var(--nv);
@@ -196,9 +213,9 @@ select.form-select option {
   border: 1px solid var(--nv);
   font-weight: 600;
   border-radius: 8px;
-  padding: 8px 16px;
-  min-height: 40px;
-  line-height: 1.35 !important;
+  padding: 8px 18px;
+  min-height: 42px;
+  line-height: 1.5 !important;
 }
 .btn-zb-primary:hover { background: var(--nv2); color: #fff; }
 
@@ -208,8 +225,9 @@ select.form-select option {
   border: 1px solid #e0b40e;
   font-weight: 700;
   border-radius: 8px;
-  padding: 8px 16px;
-  min-height: 40px;
+  padding: 8px 18px;
+  min-height: 42px;
+  line-height: 1.5 !important;
 }
 .btn-zb-gold:hover { background: #eab70b; color: #1b2350; }
 
@@ -219,6 +237,9 @@ select.form-select option {
   border: 1px solid var(--gn);
   font-weight: 600;
   border-radius: 8px;
+  padding: 8px 18px;
+  min-height: 42px;
+  line-height: 1.5 !important;
 }
 .btn-zb-success:hover { background: #0f8b4d; color: #fff; }
 
@@ -228,6 +249,9 @@ select.form-select option {
   border: 1px solid var(--rd);
   font-weight: 600;
   border-radius: 8px;
+  padding: 8px 18px;
+  min-height: 42px;
+  line-height: 1.5 !important;
 }
 
 /* Layout Shell */
@@ -365,7 +389,7 @@ select.form-select option {
 .header-banner {
   background: linear-gradient(110deg, #0a1a4d, #14307a 65%, #2a4fb0);
   color: #fff;
-  padding: 10px 24px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -377,8 +401,14 @@ select.form-select option {
 }
 .header-banner img { width: 50px; height: 50px; object-fit: contain; }
 .header-banner .hn { flex: 1; min-width: 0; }
-.header-banner .hn .ur { color: var(--am); font-size: 22px; line-height: 1.25 !important; margin-bottom: 2px; }
-.header-banner .hn b { font-size: 13.5px; }
+.header-banner .hn .ur {
+  color: var(--am);
+  font-size: 24px;
+  line-height: 1.8 !important;
+  margin-bottom: 4px;
+  font-family: 'Alvi Nastaleeq', 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif !important;
+}
+.header-banner .hn b { font-size: 13.5px; line-height: 1.4; display: block; }
 .header-banner .clock { text-align: right; font-size: 11.5px; color: #cfd8ff; white-space: nowrap; }
 .header-banner .clock b { display: block; font-size: 18px; color: var(--am); }
 
@@ -386,6 +416,13 @@ select.form-select option {
 .page-container {
   padding: 20px 24px 60px;
   flex: 1;
+}
+
+/* Alerts */
+.alert {
+  line-height: 1.7 !important;
+  padding: 12px 18px !important;
+  border-radius: 8px !important;
 }
 
 /* Cards */
@@ -407,6 +444,7 @@ select.form-select option {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  line-height: 1.5 !important;
 }
 
 /* KPI Cards */
@@ -426,9 +464,10 @@ select.form-select option {
   width: 5px;
   background: var(--kpi-color, var(--nv));
 }
-.kpi-title { font-size: 12px; color: var(--mu); margin-bottom: 4px; }
-.kpi-value { font-size: 22px; font-weight: 700; margin-bottom: 4px; line-height: 1.2; }
-.kpi-sub { font-size: 11.5px; color: var(--mu); }
+.kpi-title { font-size: 12px; color: var(--mu); margin-bottom: 4px; line-height: 1.4; }
+.kpi-value { font-size: 22px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+.kpi-label { font-size: 12.5px; color: var(--mu); line-height: 1.6 !important; }
+.kpi-sub { font-size: 11.5px; color: var(--mu); line-height: 1.4; }
 
 /* Tables */
 .table { font-size: 13px; }
@@ -438,16 +477,17 @@ select.form-select option {
   font-weight: 600;
   font-size: 12px;
   border-bottom: 2px solid var(--bd);
-  padding: 10px;
+  padding: 10px 12px;
 }
 .table th, .table td {
-  line-height: 1.35 !important;
+  line-height: 1.7 !important;
   vertical-align: middle !important;
 }
 .table td {
-  padding: 8px 10px;
+  padding: 10px 12px !important;
   vertical-align: middle;
   border-bottom: 1px solid #edf2fc;
+  overflow: visible;
 }
 .table tr:hover td { background: rgba(20, 48, 122, 0.02); }
 
