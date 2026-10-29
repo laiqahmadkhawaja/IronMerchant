@@ -26,6 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = trim($_POST['action'] ?? '');
         if ($action === 'save_customer') {
             $custId      = (int)($_POST['customer_id'] ?? 0);
+            $customerType = trim($_POST['customer_type'] ?? 'regular');
+            $isWalkin    = ($customerType === 'walkin') ? 1 : 0;
             $name        = trim($_POST['name'] ?? '');
             $code        = trim($_POST['code'] ?? '');
             $phone       = trim($_POST['phone'] ?? '');
@@ -42,8 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($errors)) {
                 try {
                     if ($custId > 0) {
-                        $upd = $pdo->prepare("UPDATE parties SET name = ?, code = ?, phone = ?, cnic = ?, company_name = ?, address = ?, credit_limit = ?, notes = ? WHERE id = ? AND type = 'customer'");
-                        $upd->execute([$name, $code, $phone, $cnic, $companyName, $address, $creditLimit, $notes, $custId]);
+                        if ($isWalkin) { $creditLimit = 0.0; }
+                        $upd = $pdo->prepare("UPDATE parties SET name = ?, code = ?, is_walkin = ?, phone = ?, cnic = ?, company_name = ?, address = ?, credit_limit = ?, notes = ? WHERE id = ? AND type = 'customer'");
+                        $upd->execute([$name, $code, $isWalkin, $phone, $cnic, $companyName, $address, $creditLimit, $notes, $custId]);
                         logAudit('update', 'parties', $custId, "Updated customer $name ($code)");
                         setFlash('success', "Customer '$name' updated successfully.");
                     } else {
@@ -51,8 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $code = generateDocumentNumber('CUST', 'parties', 'code');
                         }
                         $openBal = (float)($_POST['opening_balance'] ?? 0);
-                        $ins = $pdo->prepare("INSERT INTO parties (type, code, name, phone, cnic, company_name, address, opening_balance, current_balance, credit_limit, notes) VALUES ('customer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $ins->execute([$code, $name, $phone, $cnic, $companyName, $address, $openBal, $openBal, $creditLimit, $notes]);
+                        if ($isWalkin) { $creditLimit = 0.0; $openBal = 0.0; }
+                        $ins = $pdo->prepare("INSERT INTO parties (type, is_walkin, code, name, phone, cnic, company_name, address, opening_balance, current_balance, credit_limit, notes) VALUES ('customer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $ins->execute([$isWalkin, $code, $name, $phone, $cnic, $companyName, $address, $openBal, $openBal, $creditLimit, $notes]);
                         $newId = (int)$pdo->lastInsertId();
                         logAudit('create', 'parties', $newId, "Created customer $name ($code) with opening balance $openBal");
                         setFlash('success', "Customer '$name' added successfully.");
@@ -114,6 +118,7 @@ if (!empty($_GET['edit'])) {
     $stE->execute([$editId]);
     $editCust = $stE->fetch();
 }
+$isWalkInEdit = $editCust ? (!empty($editCust['is_walkin']) || (int)$editCust['id'] === 1 || stripos((string)$editCust['name'], 'walk-in') !== false) : false;
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -241,10 +246,21 @@ require_once __DIR__ . '/includes/header.php';
                     <?= htmlspecialchars($c['code'] ?? 'CUST-' . $c['id']) ?>
                   </td>
                   <td style="padding: 12px 14px;">
-                    <div style="font-weight: 600; color: var(--nv); font-size: 14px;">
-                      <a href="customer_ledger.php?id=<?= $c['id'] ?>" style="color: inherit; text-decoration: none;">
-                        <?= htmlspecialchars($c['name']) ?>
-                      </a>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <span style="font-weight: 600; color: var(--nv); font-size: 14px;">
+                        <a href="customer_ledger.php?id=<?= $c['id'] ?>" style="color: inherit; text-decoration: none;">
+                          <?= htmlspecialchars($c['name']) ?>
+                        </a>
+                      </span>
+                      <?php if (!empty($c['is_walkin']) || (int)$c['id'] === 1): ?>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 10.5px;">
+                          <i class="fa-solid fa-person-walking me-1"></i>Walk-in (واک ان)
+                        </span>
+                      <?php else: ?>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 10.5px;">
+                          <i class="fa-solid fa-book-bookmark me-1"></i>Regular (کھاتہ دار)
+                        </span>
+                      <?php endif; ?>
                     </div>
                     <?php if (!empty($c['company_name'])): ?>
                       <small class="text-muted"><i class="fa-solid fa-building me-1"></i><?= htmlspecialchars($c['company_name']) ?></small>
@@ -311,6 +327,26 @@ require_once __DIR__ . '/includes/header.php';
           <input type="hidden" name="customer_id" value="<?= $editCust ? (int)$editCust['id'] : 0 ?>">
 
           <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Customer Type (گاہک کی قسم) <span class="text-danger">*</span></label>
+              <div class="d-flex flex-wrap gap-4 align-items-center p-3 rounded-3 border bg-light">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="customer_type" id="typeRegular" value="regular" <?= (!$isWalkInEdit) ? 'checked' : '' ?> onchange="updateCustomerTypeUI()">
+                  <label class="form-check-label fw-bold text-dark" for="typeRegular" style="cursor: pointer;">
+                    <i class="fa-solid fa-book-bookmark text-primary me-1"></i> Regular Khata Account (کھاتہ دار / ریگولر کسٹمر)
+                  </label>
+                  <div class="text-muted small ps-4">Eligible for ledger credit limits and deferred udhaar balance payments.</div>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="customer_type" id="typeWalkin" value="walkin" <?= ($isWalkInEdit) ? 'checked' : '' ?> onchange="updateCustomerTypeUI()">
+                  <label class="form-check-label fw-bold text-dark" for="typeWalkin" style="cursor: pointer;">
+                    <i class="fa-solid fa-person-walking text-success me-1"></i> Walk-in / Counter Cash (واک ان / نقد گاہک)
+                  </label>
+                  <div class="text-muted small ps-4">Cash/bank payment only. Credit/udhaar is strictly disabled for walk-in customers.</div>
+                </div>
+              </div>
+            </div>
+
             <div class="col-12 col-md-4">
               <label class="form-label">Customer Name (گاہک کا نام) <span class="text-danger">*</span></label>
               <input type="text" name="name" class="form-control" required placeholder="e.g. Mian Tariq Steel Traders (میاں طارق)" value="<?= htmlspecialchars($editCust['name'] ?? '') ?>">
@@ -370,5 +406,36 @@ require_once __DIR__ . '/includes/header.php';
         </form>
       </div>
     </div>
+
+<script>
+function updateCustomerTypeUI() {
+  const isWalkIn = document.getElementById('typeWalkin') ? document.getElementById('typeWalkin').checked : false;
+  const creditInput = document.querySelector('input[name="credit_limit"]');
+  const openBalInput = document.querySelector('input[name="opening_balance"]');
+  
+  if (creditInput) {
+    if (isWalkIn) {
+      creditInput.value = '0.00';
+      creditInput.readOnly = true;
+      creditInput.classList.add('bg-light');
+    } else {
+      creditInput.readOnly = false;
+      creditInput.classList.remove('bg-light');
+    }
+  }
+
+  if (openBalInput) {
+    if (isWalkIn) {
+      openBalInput.value = '0.00';
+      openBalInput.readOnly = true;
+      openBalInput.classList.add('bg-light');
+    } else {
+      openBalInput.readOnly = false;
+      openBalInput.classList.remove('bg-light');
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', updateCustomerTypeUI);
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

@@ -156,7 +156,7 @@ if ($action === 'create') {
     }
 
     // Customer check
-    $custStmt = $db->prepare("SELECT id, name, code, current_balance FROM parties WHERE id = ? AND type = 'customer'");
+    $custStmt = $db->prepare("SELECT id, name, code, current_balance, is_walkin FROM parties WHERE id = ? AND type = 'customer'");
     $custStmt->execute([$customerId]);
     $customer = $custStmt->fetch();
     if (!$customer) {
@@ -164,7 +164,8 @@ if ($action === 'create') {
     }
 
     // Determine if selected customer is a Walk-in / Cash counter customer
-    $isWalkIn = ((int)$customer['id'] === 1)
+    $isWalkIn = (!empty($customer['is_walkin']))
+        || ((int)$customer['id'] === 1)
         || (isset($customer['code']) && strtoupper((string)$customer['code']) === 'CUST-001')
         || (stripos((string)$customer['name'], 'walk-in') !== false)
         || (stripos((string)$customer['name'], 'walk in') !== false)

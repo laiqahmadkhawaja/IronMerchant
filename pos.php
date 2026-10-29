@@ -8,7 +8,7 @@ requirePerm('pos');
 
 $db = getDB();
 $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
-$customers = $db->query("SELECT id, name, phone, current_balance FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY name ASC")->fetchAll();
+$customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 ?>
 
@@ -97,7 +97,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
           <label class="form-label">Customer (کسٹمر نام)</label>
           <select id="custSelect" class="form-select" onchange="onCustChange()">
             <?php foreach ($customers as $c): ?>
-              <?php $isWalkIn = ((int)$c['id'] === 1 || stripos((string)$c['name'], 'walk-in') !== false || stripos((string)$c['name'], 'walk in') !== false); ?>
+              <?php $isWalkIn = (!empty($c['is_walkin']) || (int)$c['id'] === 1 || stripos((string)$c['name'], 'walk-in') !== false || stripos((string)$c['name'], 'walk in') !== false); ?>
               <option value="<?= $c['id'] ?>" data-balance="<?= $c['current_balance'] ?>" data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>" data-is-walkin="<?= $isWalkIn ? '1' : '0' ?>">
                 <?= htmlspecialchars($c['name']) ?> (<?= formatMoney($c['current_balance']) ?>)
               </option>
