@@ -29,7 +29,7 @@
 body {
   background-color: var(--bg);
   color: var(--tx);
-  font-family: 'Agency FB', 'Sora', 'Noto Nastaliq Urdu', system-ui, -apple-system, sans-serif;
+  font-family: 'Sora', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13.5px;
   line-height: 1.4;
   margin: 0;
@@ -42,8 +42,8 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.25 !important;
 }
 
-/* Urdu Typography with balanced line-height */
-.ur {
+/* Urdu Typography with Agency FB Priority & balanced line-height */
+.ur, [dir="rtl"], [lang="ur"] {
   font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif !important;
   line-height: 1.35 !important;
   direction: rtl;
