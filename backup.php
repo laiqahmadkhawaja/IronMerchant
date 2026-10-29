@@ -106,6 +106,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     }
 }
 
+// Handle Database Reset / Empty
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset_database') {
+    if (!validateCSRF($_POST['csrf_token'] ?? '')) {
+        $errors[] = 'Invalid security token.';
+    } elseif ((getCurrentUser()['role'] ?? '') !== 'Owner') {
+        $errors[] = 'Only the Owner can reset or clear the database.';
+    } else {
+        $confirmPin = trim((string)($_POST['confirm_pin'] ?? ''));
+        $resetMode = trim((string)($_POST['reset_mode'] ?? 'fresh_start'));
+
+        $owner = $pdo->query("SELECT pin FROM users WHERE role = 'Owner' LIMIT 1")->fetch();
+        if (!$owner || $owner['pin'] !== $confirmPin) {
+            $errors[] = 'Incorrect Owner PIN. Database reset aborted.';
+        } else {
+            try {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+
+                $transactionTables = [
+                    'sale_items', 'sale_charges', 'sales',
+                    'purchase_items', 'purchase_charges', 'purchases',
+                    'return_items', 'returns',
+                    'stock_movements', 'stock_adjustments',
+                    'vouchers', 'journal_entry_lines', 'journal_entries',
+                    'daily_closings', 'inter_account_transfers',
+                    'expenses', 'audit_logs'
+                ];
+                foreach ($transactionTables as $tbl) {
+                    $pdo->exec("TRUNCATE TABLE `$tbl`");
+                }
+
+                $pdo->exec("UPDATE financial_accounts SET current_balance = 0.00, opening_balance = 0.00");
+
+                if ($resetMode === 'fresh_start') {
+                    $pdo->exec("TRUNCATE TABLE `items`");
+                    $pdo->exec("DELETE FROM `parties` WHERE id > 1");
+                    $pdo->exec("UPDATE `parties` SET current_balance = 0.00, opening_balance = 0.00, is_walkin = 1 WHERE id = 1");
+                    $pdo->exec("ALTER TABLE `items` AUTO_INCREMENT = 1");
+                    $pdo->exec("ALTER TABLE `parties` AUTO_INCREMENT = 2");
+                } else {
+                    $pdo->exec("UPDATE `items` SET stock_qty = 0.00");
+                    $pdo->exec("UPDATE `parties` SET current_balance = 0.00, opening_balance = 0.00");
+                }
+
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+
+                logAudit('reset_database', 'system', 0, "Database reset performed ($resetMode)");
+                setFlash('success', 'Database successfully cleared and emptied! Ready for production usage.');
+                header('Location: backup.php');
+                exit;
+            } catch (Throwable $e) {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+                $errors[] = 'Reset failed: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
 // Scan backups directory
 $backupFiles = [];
 $scanned = glob($backupDir . '/*.sql') ?: [];
@@ -206,5 +263,67 @@ require_once __DIR__ . '/includes/header.php';
         </table>
       </div>
     </div>
+
+    <!-- Database Reset / Fresh Start Section (Owner Only) -->
+    <?php if ((getCurrentUser()['role'] ?? '') === 'Owner'): ?>
+    <div class="card mt-4" style="border: 1px solid #fecaca; background: #fff; border-radius: 10px; overflow: hidden;">
+      <div class="card-header py-3" style="background: #fef2f2; border-bottom: 1px solid #fecaca;">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-danger fs-5"></i>
+          <div>
+            <h6 class="mb-0 fw-bold text-danger">Database Reset & Clean Start (ڈیٹابیس خالی / نیا آغاز کریں)</h6>
+            <small class="text-muted">Use this tool to permanently wipe demo data, test sales/purchases, or reset to a completely clean slate.</small>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="backup.php" onsubmit="return confirm('WARNING: Are you absolutely sure? This will permanently delete transactional data and cannot be undone!');">
+          <?= getCSRFInput() ?>
+          <input type="hidden" name="action" value="reset_database">
+
+          <div class="row g-3">
+            <div class="col-12 col-md-7">
+              <label class="form-label fw-bold">Select Reset Mode (ری سیٹ کا طریقہ منتخب کریں):</label>
+              <div class="form-check p-3 mb-2 rounded border" style="background: #fafafa;">
+                <input class="form-check-input ms-0 me-2" type="radio" name="reset_mode" id="resetFresh" value="fresh_start" checked>
+                <label class="form-check-label fw-semibold" for="resetFresh">
+                  <strong>Complete Fresh Start (مکمل خالی ڈیٹابیس)</strong>
+                  <div class="text-muted small mt-1">
+                    Wipes all demo/dummy items, custom customers, suppliers, and all transactions (sales, purchases, vouchers, ledger). Keeps Chart of Accounts, company settings, user accounts, and default Walk-in Customer.
+                  </div>
+                </label>
+              </div>
+
+              <div class="form-check p-3 rounded border" style="background: #fafafa;">
+                <input class="form-check-input ms-0 me-2" type="radio" name="reset_mode" id="resetTrans" value="clean_transactions">
+                <label class="form-check-label fw-semibold" for="resetTrans">
+                  <strong>Wipe Transactions Only (صرف لین دین صاف کریں)</strong>
+                  <div class="text-muted small mt-1">
+                    Clears sales, purchases, vouchers, and stock movements. Keeps items and customers but resets stock quantities and balances to zero.
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-5 d-flex flex-column justify-content-between">
+              <div>
+                <label class="form-label fw-bold text-danger">Enter Owner PIN to Confirm (تصدیقی پن کوڈ):</label>
+                <input type="password" name="confirm_pin" class="form-control form-control-lg text-center fw-bold" placeholder="Owner PIN (default: 1234)" required autocomplete="off" style="letter-spacing: 4px;">
+                <small class="text-muted d-block mt-2">
+                  <i class="fa-solid fa-lock me-1"></i> Required to protect against accidental deletion.
+                </small>
+              </div>
+
+              <div class="mt-3">
+                <button type="submit" class="btn btn-danger w-100 py-2 fw-bold">
+                  <i class="fa-solid fa-trash-can me-2"></i> Confirm & Reset Database Now (ڈیٹابیس خالی کریں)
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
