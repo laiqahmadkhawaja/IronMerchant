@@ -343,12 +343,62 @@ try {
     assertTest("Test 12: Reversal Journal Entry Created", false, $e->getMessage());
 }
 
+// ------------------------------------------------------------------------
+// Test 13: Shift Opening & Closing Strict-Mode Database Integrity
+// ------------------------------------------------------------------------
+echo "\n--- Running Test 13: Shift Opening & Closing Persistence ---\n";
+try {
+    $db->exec("DELETE FROM daily_closings WHERE closing_no = 'TEST-SFT-VERIFY'");
+    $testShiftNo = 'TEST-SFT-VERIFY';
+    $ins = $db->prepare("
+        INSERT INTO daily_closings (
+            closing_no, shift_name, closing_date, opening_time, closing_time, user_id, opened_by,
+            opening_cash, opening_bank, gross_sales, sales_discount, net_sales,
+            cash_sales, credit_sales, bank_sales, customer_cash_collections, other_cash_receipts,
+            supplier_cash_payments, cash_expenses, other_cash_payments,
+            expected_cash, actual_cash_counted, cash_difference, status, notes
+        ) VALUES (
+            ?, 'Verification Shift', CURDATE(), CURTIME(), NULL, 1, 1,
+            5000.00, 0.00, 0.00, 0.00, 0.00,
+            0.00, 0.00, 0.00, 0.00, 0.00,
+            0.00, 0.00, 0.00,
+            5000.00, 5000.00, 0.00, 'open', 'Automated test shift'
+        )
+    ");
+    $ins->execute([$testShiftNo]);
+    $createdShiftId = (int)$db->lastInsertId();
+
+    $stmtCheck = $db->prepare("SELECT status, opening_cash, closing_time FROM daily_closings WHERE id = ?");
+    $stmtCheck->execute([$createdShiftId]);
+    $shiftRow = $stmtCheck->fetch();
+
+    $shiftOpenedOk = ($shiftRow && $shiftRow['status'] === 'open' && (float)$shiftRow['opening_cash'] == 5000.00);
+
+    // Finalize shift
+    $upd = $db->prepare("UPDATE daily_closings SET closing_time = CURTIME(), status = 'finalized' WHERE id = ?");
+    $upd->execute([$createdShiftId]);
+
+    $stmtCheck->execute([$createdShiftId]);
+    $closedRow = $stmtCheck->fetch();
+    $shiftClosedOk = ($closedRow && $closedRow['status'] === 'finalized' && !empty($closedRow['closing_time']));
+
+    $db->exec("DELETE FROM daily_closings WHERE id = $createdShiftId");
+
+    assertTest(
+        "Test 13: Shift Opening & Closing Persistence",
+        $shiftOpenedOk && $shiftClosedOk,
+        "Shift created with NULL closing_time, finalized with recorded timestamp"
+    );
+} catch (Exception $e) {
+    assertTest("Test 13: Shift Opening & Closing Persistence", false, $e->getMessage());
+}
+
 echo "\n========================================================\n";
 echo " TEST RESULTS: {$passCount} PASSED, {$failCount} FAILED\n";
 echo "========================================================\n";
 
 if ($failCount === 0) {
-    echo ">>> ALL 12 MANDATORY ACCEPTANCE TESTS PASSED SUCCESSFULLY! <<<\n";
+    echo ">>> ALL MANDATORY ACCEPTANCE TESTS PASSED SUCCESSFULLY! <<<\n";
 } else {
     exit(1);
 }

@@ -23,6 +23,48 @@ $errors = [];
 $targetDate = trim($_GET['date'] ?? date('Y-m-d'));
 $viewId = (int)($_GET['view_id'] ?? 0);
 
+// Function to ensure daily_closings schema compatibility across all MySQL / MariaDB strict configurations
+function ensureDailyClosingsSchema(PDO $pdo): void {
+    static $repaired = false;
+    if ($repaired) {
+        return;
+    }
+    $repaired = true;
+    try {
+        $pdo->exec("
+            ALTER TABLE daily_closings 
+                MODIFY closing_time TIME NULL DEFAULT NULL,
+                MODIFY opening_time TIME NULL DEFAULT NULL,
+                MODIFY opened_by INT NULL DEFAULT NULL,
+                MODIFY opening_cash DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY opening_bank DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY gross_sales DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY sales_discount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY net_sales DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY cash_sales DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY credit_sales DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY bank_sales DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY customer_cash_collections DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY other_cash_receipts DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY supplier_cash_payments DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY cash_expenses DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY other_cash_payments DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY expected_cash DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY actual_cash_counted DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY cash_difference DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                MODIFY status ENUM('open', 'draft', 'finalized') NOT NULL DEFAULT 'open',
+                MODIFY notes TEXT NULL DEFAULT NULL
+        ");
+    } catch (Throwable $t) {
+        try {
+            $pdo->exec("ALTER TABLE daily_closings MODIFY closing_time TIME NULL DEFAULT NULL");
+        } catch (Throwable $t1) {}
+        try {
+            $pdo->exec("ALTER TABLE daily_closings MODIFY opening_time TIME NULL DEFAULT NULL");
+        } catch (Throwable $t2) {}
+    }
+}
+
 // Check if an active open shift exists in the system
 $stActive = $pdo->query("
     SELECT dc.*, u.name AS user_name, op.name AS opener_name 
@@ -63,12 +105,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $openingBank = (float)$stB->fetchColumn();
 
         try {
+            ensureDailyClosingsSchema($pdo);
             $closingNo = generateDocumentNumber('SFT', 'daily_closings', 'closing_no');
             $ins = $pdo->prepare("
                 INSERT INTO daily_closings (
-                    closing_no, shift_name, closing_date, opening_time, user_id, opened_by,
-                    opening_cash, opening_bank, status, notes
-                ) VALUES (?, ?, CURDATE(), CURTIME(), ?, ?, ?, ?, 'open', ?)
+                    closing_no, shift_name, closing_date, opening_time, closing_time, user_id, opened_by,
+                    opening_cash, opening_bank, gross_sales, sales_discount, net_sales,
+                    cash_sales, credit_sales, bank_sales, customer_cash_collections, other_cash_receipts,
+                    supplier_cash_payments, cash_expenses, other_cash_payments,
+                    expected_cash, actual_cash_counted, cash_difference, status, notes
+                ) VALUES (
+                    ?, ?, CURDATE(), CURTIME(), NULL, ?, ?,
+                    ?, ?, 0.00, 0.00, 0.00,
+                    0.00, 0.00, 0.00, 0.00, 0.00,
+                    0.00, 0.00, 0.00,
+                    0.00, 0.00, 0.00, 'open', ?
+                )
             ");
             $ins->execute([
                 $closingNo, $shiftName, $currentUser['id'], $currentUser['id'],
@@ -81,7 +133,40 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             header("Location: closing.php");
             exit;
         } catch (Exception $e) {
-            $errors[] = 'Failed to open shift: ' . $e->getMessage();
+            // Resilient fallback: If database has closing_time as NOT NULL and user cannot ALTER TABLE
+            if (strpos($e->getMessage(), 'closing_time') !== false || strpos($e->getMessage(), '1048') !== false || strpos($e->getMessage(), '1364') !== false) {
+                try {
+                    $insFb = $pdo->prepare("
+                        INSERT INTO daily_closings (
+                            closing_no, shift_name, closing_date, opening_time, closing_time, user_id, opened_by,
+                            opening_cash, opening_bank, gross_sales, sales_discount, net_sales,
+                            cash_sales, credit_sales, bank_sales, customer_cash_collections, other_cash_receipts,
+                            supplier_cash_payments, cash_expenses, other_cash_payments,
+                            expected_cash, actual_cash_counted, cash_difference, status, notes
+                        ) VALUES (
+                            ?, ?, CURDATE(), CURTIME(), '00:00:00', ?, ?,
+                            ?, ?, 0.00, 0.00, 0.00,
+                            0.00, 0.00, 0.00, 0.00, 0.00,
+                            0.00, 0.00, 0.00,
+                            0.00, 0.00, 0.00, 'open', ?
+                        )
+                    ");
+                    $insFb->execute([
+                        $closingNo, $shiftName, $currentUser['id'], $currentUser['id'],
+                        $openingCash, $openingBank, $notes
+                    ]);
+                    $newShiftId = (int)$pdo->lastInsertId();
+
+                    logAudit('create', 'daily_closings', $newShiftId, "Opened shift $closingNo ($shiftName) with opening cash Rs $openingCash");
+                    setFlash('success', "Shift $closingNo ($shiftName) has been OPENED with opening drawer cash of Rs " . number_format($openingCash, 2));
+                    header("Location: closing.php");
+                    exit;
+                } catch (Exception $e2) {
+                    $errors[] = 'Failed to open shift: ' . $e2->getMessage();
+                }
+            } else {
+                $errors[] = 'Failed to open shift: ' . $e->getMessage();
+            }
         }
     }
 }
@@ -177,9 +262,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     INSERT INTO daily_closings (
                         closing_no, shift_name, closing_date, opening_time, closing_time, user_id, opened_by,
                         opening_cash, opening_bank, gross_sales, sales_discount, net_sales, cash_sales,
-                        credit_sales, bank_sales, customer_cash_collections, supplier_cash_payments,
-                        cash_expenses, expected_cash, actual_cash_counted, cash_difference, status, notes
-                    ) VALUES (?, 'General Day Shift', ?, CURTIME(), CURTIME(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finalized', ?)
+                        credit_sales, bank_sales, customer_cash_collections, other_cash_receipts,
+                        supplier_cash_payments, cash_expenses, other_cash_payments,
+                        expected_cash, actual_cash_counted, cash_difference, status, notes
+                    ) VALUES (?, 'General Day Shift', ?, CURTIME(), CURTIME(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, 0.00, ?, ?, ?, 'finalized', ?)
                 ");
                 $ins->execute([
                     $closingNo, $targetDate, $currentUser['id'], $currentUser['id'],
