@@ -8,11 +8,11 @@ requirePerm('pos');
 
 $db = getDB();
 $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
-$customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY name ASC")->fetchAll();
+$customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <div>
     <h3 class="fw-bold mb-1" style="color:var(--nv);"><i class="fa-solid fa-cash-register me-2 text-warning"></i> New Sale Bill · نیا سیل بل</h3>
     <small class="text-secondary">Weight-based billing for steel rebars, girders, angle, and patti</small>
@@ -22,12 +22,25 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   </div>
 </div>
 
+<!-- POS Keyboard Navigation Bar -->
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap p-2 rounded border bg-light shadow-sm" style="font-size: 12px;">
+  <span class="text-secondary fw-semibold"><i class="fa-solid fa-keyboard me-1 text-primary"></i> Keyboard Shortcuts (کی بورڈ):</span>
+  <span class="badge bg-white text-dark border"><kbd>Enter</kbd> Next / Add Item</span>
+  <span class="badge bg-white text-dark border"><kbd>F1</kbd> Item</span>
+  <span class="badge bg-white text-dark border"><kbd>F2</kbd> Customer</span>
+  <span class="badge bg-white text-dark border"><kbd>F3</kbd> Labour</span>
+  <span class="badge bg-white text-dark border"><kbd>F4</kbd> Freight</span>
+  <span class="badge bg-white text-dark border"><kbd>F7</kbd> Paid Amount</span>
+  <span class="badge bg-success text-white"><kbd>F8</kbd> or <kbd>Ctrl+Enter</kbd> Save &amp; Print</span>
+</div>
+
 <div class="row g-3">
   <!-- Left Column: Item Selection & Cart Table -->
   <div class="col-12 col-xl-7">
     <div class="zb-card mb-3">
-      <div class="zb-card-title">
+      <div class="zb-card-title d-flex justify-content-between align-items-center">
         <span><i class="fa-solid fa-cart-plus me-1 text-primary"></i> 1. Select Steel Product (آئٹم سلیکشن)</span>
+        <span class="badge bg-light text-secondary border" style="font-size: 11px;">Shortcut: <kbd>F1</kbd></span>
       </div>
 
       <div class="row g-2 align-items-end mb-3">
@@ -53,8 +66,8 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         </div>
 
         <div class="col-12 col-md-2">
-          <button type="button" class="btn btn-zb-gold w-100" onclick="addItemToCart()">
-            <i class="fa-solid fa-plus me-1"></i> Add
+          <button type="button" class="btn btn-zb-gold w-100 fw-bold" id="addItemBtn" onclick="addItemToCart()">
+            <i class="fa-solid fa-plus me-1"></i> Add <span class="badge bg-dark bg-opacity-25 ms-1" style="font-size: 10px;">↵ Enter</span>
           </button>
         </div>
       </div>
@@ -75,7 +88,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
             <tr id="emptyCartRow">
               <td colspan="5" class="text-center py-4 text-muted">
                 <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
-                No items added yet. Select a product above and click "Add".
+                No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
               </td>
             </tr>
           </tbody>
@@ -87,18 +100,30 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   <!-- Right Column: Customer Details, Additional Charges & Checkout -->
   <div class="col-12 col-xl-5">
     <div class="zb-card">
-      <div class="zb-card-title">
+      <div class="zb-card-title d-flex justify-content-between align-items-center">
         <span><i class="fa-solid fa-file-invoice-dollar me-1 text-success"></i> 2. Customer &amp; Payment (کھاتہ و بل)</span>
+        <span class="badge bg-light text-secondary border" style="font-size: 11px;">Shortcut: <kbd>F2</kbd></span>
       </div>
 
       <!-- Customer Selection -->
       <div class="row g-2 mb-2">
         <div class="col-8">
-          <label class="form-label">Customer (کسٹمر نام)</label>
+          <label class="form-label d-flex justify-content-between">
+            <span>Customer (کسٹمر نام)</span>
+            <span class="badge bg-light text-secondary border" style="font-size: 10px;">[F2]</span>
+          </label>
           <select id="custSelect" class="form-select" onchange="onCustChange()">
-            <?php foreach ($customers as $c): ?>
-              <?php $isWalkIn = (!empty($c['is_walkin']) || (int)$c['id'] === 1 || stripos((string)$c['name'], 'walk-in') !== false || stripos((string)$c['name'], 'walk in') !== false); ?>
-              <option value="<?= $c['id'] ?>" data-balance="<?= $c['current_balance'] ?>" data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>" data-is-walkin="<?= $isWalkIn ? '1' : '0' ?>">
+            <?php 
+            $walkInFound = false;
+            foreach ($customers as $c): 
+              $isWalkIn = (!empty($c['is_walkin']) || (int)$c['id'] === 1 || stripos((string)$c['name'], 'walk-in') !== false || stripos((string)$c['name'], 'walk in') !== false);
+              $selectedAttr = '';
+              if ($isWalkIn && !$walkInFound) {
+                $selectedAttr = 'selected';
+                $walkInFound = true;
+              }
+            ?>
+              <option value="<?= $c['id'] ?>" data-name="<?= htmlspecialchars($c['name']) ?>" data-balance="<?= $c['current_balance'] ?>" data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>" data-is-walkin="<?= $isWalkIn ? '1' : '0' ?>" <?= $selectedAttr ?>>
                 <?= htmlspecialchars($c['name']) ?> (<?= formatMoney($c['current_balance']) ?>)
               </option>
             <?php endforeach; ?>
@@ -135,14 +160,20 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       <div class="p-3 bg-light rounded-3 border mb-3">
         <div class="row g-2 mb-2">
           <div class="col-6">
-            <label class="form-label">Labour / Crane Charges</label>
+            <label class="form-label d-flex justify-content-between">
+              <span>Labour / Crane Charges</span>
+              <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F3]</span>
+            </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
               <input type="number" id="labourCharge" class="form-control" value="0" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
           <div class="col-6">
-            <label class="form-label">Delivery / Freight Charges</label>
+            <label class="form-label d-flex justify-content-between">
+              <span>Delivery / Freight Charges</span>
+              <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F4]</span>
+            </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
               <input type="number" id="deliveryCharge" class="form-control" value="0" step="any" oninput="calculateBillTotals()">
@@ -184,7 +215,10 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
             </select>
           </div>
           <div class="col-6">
-            <label class="form-label">Amount Paid Now (وصولی)</label>
+            <label class="form-label d-flex justify-content-between">
+              <span>Amount Paid Now (وصولی)</span>
+              <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F7]</span>
+            </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
               <input type="number" id="paidAmount" class="form-control fw-bold" placeholder="Blank = Full Pay" step="any" oninput="calculateBillTotals()">
@@ -208,6 +242,9 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       <!-- Submit Button -->
       <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()">
         <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)
+        <div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;">
+          <i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save
+        </div>
       </button>
     </div>
   </div>
@@ -218,6 +255,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 
   function onItemSelectChange() {
     const sel = document.getElementById('itemSelect');
+    if (!sel || sel.selectedIndex < 0) return;
     const opt = sel.options[sel.selectedIndex];
     if (opt) {
       document.getElementById('itemRate').value = opt.getAttribute('data-price') || '';
@@ -226,10 +264,14 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 
   function onCustChange() {
     const sel = document.getElementById('custSelect');
+    if (!sel || sel.selectedIndex < 0) return;
     const opt = sel.options[sel.selectedIndex];
     if (opt) {
       const bal = parseFloat(opt.getAttribute('data-balance')) || 0;
       const isWalkIn = (opt.getAttribute('data-is-walkin') === '1');
+      const custCleanName = opt.getAttribute('data-name') || opt.text.split(' (Rs')[0].trim();
+      const ph = opt.getAttribute('data-phone') || '';
+
       const disp = document.getElementById('custBalDisplay');
       disp.value = (bal < 0 ? '- Rs ' : 'Rs ') + Math.abs(bal).toLocaleString('en-US', { minimumFractionDigits: 2 });
       disp.style.color = bal > 0 ? 'var(--rd)' : 'var(--gn)';
@@ -238,20 +280,21 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       const paySelect = document.getElementById('paymentMethod');
       const creditOption = paySelect.querySelector('option[value="Credit"]');
       const paidInput = document.getElementById('paidAmount');
+      const nameInput = document.getElementById('custNameCustom');
+      const phoneInput = document.getElementById('custPhoneCustom');
 
       if (isWalkIn) {
         if (notice) notice.style.display = 'flex';
         if (creditOption) creditOption.disabled = true;
         if (paySelect.value === 'Credit') paySelect.value = 'Cash';
         paidInput.placeholder = 'Blank = Full Pay / Enter Advance (پیشگی)';
+        nameInput.value = '';
+        phoneInput.value = '';
       } else {
         if (notice) notice.style.display = 'none';
         if (creditOption) creditOption.disabled = false;
         paidInput.placeholder = 'Blank = Full Pay';
-      }
-      const ph = opt.getAttribute('data-phone') || '';
-      const phoneInput = document.getElementById('custPhoneCustom');
-      if (phoneInput && !phoneInput.value && ph) {
+        nameInput.value = custCleanName;
         phoneInput.value = ph;
       }
       calculateBillTotals();
@@ -260,9 +303,15 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 
   function addItemToCart() {
     const sel = document.getElementById('itemSelect');
+    if (!sel || sel.selectedIndex < 0) return;
     const opt = sel.options[sel.selectedIndex];
     const qtyInput = document.getElementById('itemQty');
     const rateInput = document.getElementById('itemRate');
+
+    if (!opt) {
+      alert('براہ کرم پہلے پروڈکٹ منتخب کریں۔');
+      return;
+    }
 
     const itemId = parseInt(sel.value);
     const itemName = opt.text.split(' (Stock:')[0].trim();
@@ -272,6 +321,8 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 
     if (itemId <= 0 || qty <= 0 || rate <= 0) {
       alert('براہ کرم صحیح مقدار (Weight) اور ریٹ (Rate) درج کریں۔');
+      if (qty <= 0) qtyInput.focus();
+      else rateInput.focus();
       return;
     }
 
@@ -288,6 +339,9 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     qtyInput.value = '';
     renderCart();
     calculateBillTotals();
+
+    // Refocus item select so cashier can immediately select next product
+    sel.focus();
   }
 
   function removeCartItem(index) {
@@ -303,7 +357,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <tr id="emptyCartRow">
           <td colspan="5" class="text-center py-4 text-muted">
             <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
-            No items added yet. Select a product above and click "Add".
+            No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
           </td>
         </tr>
       `;
@@ -317,7 +371,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <td>Rs ${it.unit_rate.toLocaleString()}</td>
         <td class="text-end fw-bold">Rs ${(it.line_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCartItem(${idx})">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCartItem(${idx})" title="Remove Item">
             <i class="fa-solid fa-trash"></i>
           </button>
         </td>
@@ -334,7 +388,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     const grand = Math.max(0, (subtotal + labour + delivery) - discount);
     
     const sel = document.getElementById('custSelect');
-    const opt = sel.options[sel.selectedIndex];
+    const opt = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
     const isWalkIn = opt ? (opt.getAttribute('data-is-walkin') === '1') : false;
     const paidInput = document.getElementById('paidAmount');
     
@@ -357,11 +411,13 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   async function submitBill() {
     if (!cart.length) {
       alert('بل بنانے کے لیے پہلے کم از کم ایک آئٹم شامل کریں۔');
+      const itemSel = document.getElementById('itemSelect');
+      if (itemSel) itemSel.focus();
       return;
     }
 
     const sel = document.getElementById('custSelect');
-    const opt = sel.options[sel.selectedIndex];
+    const opt = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
     const isWalkIn = opt ? (opt.getAttribute('data-is-walkin') === '1') : false;
     const payMethod = document.getElementById('paymentMethod').value;
     const paidVal = document.getElementById('paidAmount').value;
@@ -375,6 +431,8 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     if (isWalkIn) {
       if (payMethod === 'Credit' && (!paidVal || parseFloat(paidVal) <= 0)) {
         alert('واک ان گاہک کے لیے 100% ادھار کی اجازت نہیں ہے۔ برائے مہربانی کم از کم پیشگی رقم درج کریں، بقیہ رقم مال اتروائی پر وصول کی جائے گی۔');
+        const paidInput = document.getElementById('paidAmount');
+        if (paidInput) { paidInput.focus(); paidInput.select(); }
         return;
       }
     }
@@ -403,14 +461,117 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       } else {
         alert(json.message || 'بل محفوظ کرنے میں غلطی واقع ہوئی۔');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save & Generate Bill (بل محفوظ کریں)';
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)<div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;"><i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save</div>';
       }
     } catch (err) {
       alert('سرور سے رابطہ ممکن نہیں ہو سکا۔');
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save & Generate Bill (بل محفوظ کریں)';
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)<div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;"><i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save</div>';
     }
   }
+
+  // Keyboard Navigation & Shortcuts Setup
+  document.addEventListener('DOMContentLoaded', () => {
+    const itemSel = document.getElementById('itemSelect');
+    const itemQty = document.getElementById('itemQty');
+    const itemRate = document.getElementById('itemRate');
+    const custSel = document.getElementById('custSelect');
+    const paidInput = document.getElementById('paidAmount');
+    const labourInput = document.getElementById('labourCharge');
+    const deliveryInput = document.getElementById('deliveryCharge');
+
+    // Auto-focus on item select when page loads
+    if (itemSel) {
+      itemSel.focus();
+    }
+
+    // Step 1: In Item Select, pressing Enter moves focus to Qty
+    if (itemSel) {
+      itemSel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (itemQty) {
+            itemQty.focus();
+            itemQty.select();
+          }
+        }
+      });
+    }
+
+    // Step 2: In Qty, pressing Enter moves focus to Rate
+    if (itemQty) {
+      itemQty.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (itemRate) {
+            itemRate.focus();
+            itemRate.select();
+          }
+        }
+      });
+    }
+
+    // Step 3: In Rate, pressing Enter adds item to cart and resets focus to Item Select
+    if (itemRate) {
+      itemRate.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addItemToCart();
+        }
+      });
+    }
+
+    // Step 4: In Paid Amount, pressing Enter submits the bill
+    if (paidInput) {
+      paidInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitBill();
+        }
+      });
+    }
+
+    // Global Hotkeys for rapid cashier operation without mouse
+    window.addEventListener('keydown', (e) => {
+      // F1 or Alt+I: Focus Item Selection
+      if (e.key === 'F1' || (e.altKey && (e.key === 'i' || e.key === 'I'))) {
+        e.preventDefault();
+        if (itemSel) itemSel.focus();
+      }
+      // F2 or Alt+C: Focus Customer Selection
+      else if (e.key === 'F2' || (e.altKey && (e.key === 'c' || e.key === 'C'))) {
+        e.preventDefault();
+        if (custSel) custSel.focus();
+      }
+      // F3 or Alt+L: Focus Labour Charges
+      else if (e.key === 'F3' || (e.altKey && (e.key === 'l' || e.key === 'L'))) {
+        e.preventDefault();
+        if (labourInput) { labourInput.focus(); labourInput.select(); }
+      }
+      // F4 or Alt+D: Focus Delivery Charges
+      else if (e.key === 'F4' || (e.altKey && (e.key === 'd' || e.key === 'D'))) {
+        e.preventDefault();
+        if (deliveryInput) { deliveryInput.focus(); deliveryInput.select(); }
+      }
+      // F7 or Alt+P: Focus Amount Paid Now
+      else if (e.key === 'F7' || (e.altKey && (e.key === 'p' || e.key === 'P'))) {
+        e.preventDefault();
+        if (paidInput) { paidInput.focus(); paidInput.select(); }
+      }
+      // F8 or Ctrl+Enter or Alt+S: Save & Generate Bill
+      else if (e.key === 'F8' || (e.ctrlKey && e.key === 'Enter') || (e.altKey && (e.key === 's' || e.key === 'S'))) {
+        e.preventDefault();
+        submitBill();
+      }
+      // Alt+X: Remove last cart item
+      else if (e.altKey && (e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        if (cart.length > 0) {
+          removeCartItem(cart.length - 1);
+        }
+      }
+    });
+  });
 
   // Init on load
   onItemSelectChange();
