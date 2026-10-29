@@ -67,14 +67,6 @@ $isThermal = ($size === '80' || $size === '58');
       font-style: normal;
       font-display: swap;
     }
-    @font-face {
-      font-family: 'Koodak';
-      src: url('assets/fonts/Koodak.ttf') format('truetype'),
-           url('assets/fonts/Koodak-Regular.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }
     body {
       background: #718096;
       color: #0f172a;
@@ -83,7 +75,7 @@ $isThermal = ($size === '80' || $size === '58');
       padding: 16px 8px;
     }
     .ur {
-      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif;
+      font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif;
       line-height: 1.8;
       direction: rtl;
     }
@@ -165,7 +157,7 @@ $isThermal = ($size === '80' || $size === '58');
     }
 
     .thermal-receipt .ur {
-      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+      font-family: 'Agency FB', 'Noto Nastaliq Urdu', Arial, "Helvetica Neue", Helvetica, sans-serif !important;
       font-weight: 700 !important;
       line-height: 1.85 !important;
       direction: rtl;

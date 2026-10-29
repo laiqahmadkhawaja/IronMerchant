@@ -1,20 +1,11 @@
 /* assets/css/style.css - Zafar Brothers Iron Merchants Management System */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Sora:wght@400;500;600;700&display=swap');
 
-/* Server-Hosted Local Fonts (Agency FB & Koodak) */
+/* Server-Hosted Local Font (Agency FB) */
 @font-face {
   font-family: 'Agency FB';
   src: url('../fonts/Agency-FB-Regular.ttf') format('truetype'),
        url('../fonts/Agency%20FB%20Regular.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Koodak';
-  src: url('../fonts/Koodak.ttf') format('truetype'),
-       url('../fonts/Koodak-Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -38,7 +29,7 @@
 body {
   background-color: var(--bg);
   color: var(--tx);
-  font-family: 'Sora', 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', system-ui, -apple-system, sans-serif;
+  font-family: 'Agency FB', 'Sora', 'Noto Nastaliq Urdu', system-ui, -apple-system, sans-serif;
   font-size: 13.5px;
   line-height: 1.4;
   margin: 0;
@@ -53,7 +44,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Urdu Typography with balanced line-height */
 .ur {
-  font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif !important;
+  font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif !important;
   line-height: 1.35 !important;
   direction: rtl;
 }

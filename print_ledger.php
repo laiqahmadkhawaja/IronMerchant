@@ -326,14 +326,6 @@ if ($type === 'customer') {
       font-style: normal;
       font-display: swap;
     }
-    @font-face {
-      font-family: 'Koodak';
-      src: url('assets/fonts/Koodak.ttf') format('truetype'),
-           url('assets/fonts/Koodak-Regular.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }
     body {
       background: #718096;
       color: #0f172a;
@@ -342,7 +334,7 @@ if ($type === 'customer') {
       padding: 16px 8px;
     }
     .ur {
-      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif;
+      font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif;
       line-height: 1.8;
       direction: rtl;
     }
@@ -395,7 +387,7 @@ if ($type === 'customer') {
       letter-spacing: 0.3px;
     }
     .table-ledger th .th-sub {
-      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif;
+      font-family: 'Agency FB', 'Noto Nastaliq Urdu', serif;
       line-height: 1.8;
       font-size: 10.5px;
       line-height: 1.4;
