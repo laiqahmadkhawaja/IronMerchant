@@ -162,9 +162,13 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
           <div class="col-6">
             <label class="form-label">Deposit In Account</label>
             <select id="depositAccount" class="form-select">
-              <?php foreach ($accounts as $a): ?>
-                <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
-              <?php endforeach; ?>
+              <?php if (empty($accounts)): ?>
+                <option value="1">Main Cash Register (Cash)</option>
+              <?php else: ?>
+                <?php foreach ($accounts as $a): ?>
+                  <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </select>
           </div>
           <div class="col-6">

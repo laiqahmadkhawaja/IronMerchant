@@ -145,6 +145,9 @@ if ($action === 'create') {
     $deliveryCharge = max(0.0, (float)($_POST['delivery_charge'] ?? 0));
     $paymentMethod = trim((string)($_POST['payment_method'] ?? 'Cash'));
     $paymentAccountId = (int)($_POST['payment_account_id'] ?? 1);
+    if ($paymentAccountId <= 0) {
+        $paymentAccountId = 1;
+    }
     $notes = trim((string)($_POST['notes'] ?? ''));
     $paidAmountInput = $_POST['paid_amount'] ?? null;
 
