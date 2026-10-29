@@ -52,6 +52,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Handle Delete Item (Only allowed if item has NO stock)
+        if ($action === 'delete_item') {
+            $itemId = (int)($_POST['item_id'] ?? 0);
+            $st = $pdo->prepare("SELECT id, item_code, name, stock_qty FROM items WHERE id = ?");
+            $st->execute([$itemId]);
+            $item = $st->fetch();
+
+            if (!$item) {
+                $errors[] = 'Item not found.';
+            } elseif (abs((float)$item['stock_qty']) > 0.0001) {
+                $errors[] = "Cannot delete '{$item['name']}': It currently has active stock of " . number_format((float)$item['stock_qty'], 2) . ". Stock must be 0 before an item can be deleted.";
+            } else {
+                try {
+                    $pdo->beginTransaction();
+                    $chkTransactions = $pdo->prepare("
+                        SELECT 
+                            (SELECT COUNT(*) FROM sale_items WHERE item_id = ?) +
+                            (SELECT COUNT(*) FROM purchase_items WHERE item_id = ?) +
+                            (SELECT COUNT(*) FROM return_items WHERE item_id = ?) +
+                            (SELECT COUNT(*) FROM stock_adjustments WHERE item_id = ?) AS active_refs
+                    ");
+                    $chkTransactions->execute([$itemId, $itemId, $itemId, $itemId]);
+                    $activeRefs = (int)$chkTransactions->fetchColumn();
+
+                    if ($activeRefs > 0) {
+                        // Soft delete / archive so accounting and historical sales/bills are not broken
+                        $upd = $pdo->prepare("UPDATE items SET is_active = 0 WHERE id = ?");
+                        $upd->execute([$itemId]);
+                        logAudit('delete', 'items', $itemId, "Archived zero-stock item '{$item['name']}'");
+                        setFlash('success', "Item '{$item['name']}' ({$item['item_code']}) with 0 stock has been removed from active inventory.");
+                    } else {
+                        // Hard delete completely
+                        $pdo->prepare("DELETE FROM stock_movements WHERE item_id = ?")->execute([$itemId]);
+                        $pdo->prepare("DELETE FROM items WHERE id = ?")->execute([$itemId]);
+                        logAudit('delete', 'items', $itemId, "Permanently deleted zero-stock item '{$item['name']}'");
+                        setFlash('success', "Item '{$item['name']}' ({$item['item_code']}) has been permanently deleted.");
+                    }
+                    $pdo->commit();
+                    header('Location: inventory.php');
+                    exit;
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $errors[] = "Failed to delete item: " . $e->getMessage();
+                }
+            }
+        }
+
         if ($action === 'save_item') {
             $itemId    = (int)($_POST['item_id'] ?? 0);
             $itemCode  = trim($_POST['item_code'] ?? '');
@@ -121,7 +168,7 @@ $search = trim($_GET['search'] ?? '');
 $categoryFilter = !empty($_GET['category']) ? (int)$_GET['category'] : 0;
 $stockStatus = trim($_GET['stock_status'] ?? '');
 
-$sql = "SELECT i.*, c.name AS category_name FROM items i LEFT JOIN item_categories c ON i.category_id = c.id WHERE 1=1";
+$sql = "SELECT i.*, c.name AS category_name FROM items i LEFT JOIN item_categories c ON i.category_id = c.id WHERE i.is_active = 1";
 $params = [];
 
 if ($search !== '') {
@@ -355,6 +402,20 @@ require_once __DIR__ . '/includes/header.php';
                       <a href="stock_adjust.php?item_id=<?= $it['id'] ?>" class="btn btn-outline-warning" title="Adjust Stock">
                         <i class="fa-solid fa-sliders"></i>
                       </a>
+                      <?php if ($stockQty <= 0.0001 && $stockQty >= -0.0001): ?>
+                        <form method="POST" action="inventory.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete zero-stock item: <?= htmlspecialchars(addslashes($it['name'])) ?>?');">
+                          <?= getCSRFInput() ?>
+                          <input type="hidden" name="action" value="delete_item">
+                          <input type="hidden" name="item_id" value="<?= $it['id'] ?>">
+                          <button type="submit" class="btn btn-outline-danger" title="Delete Zero-Stock Item">
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                        </form>
+                      <?php else: ?>
+                        <button type="button" class="btn btn-outline-secondary" disabled title="Cannot delete: Item has active stock (<?= number_format($stockQty, 1) ?> <?= htmlspecialchars($it['unit']) ?>)">
+                          <i class="fa-solid fa-trash"></i>
+                        </button>
+                      <?php endif; ?>
                     </div>
                   </td>
                 </tr>

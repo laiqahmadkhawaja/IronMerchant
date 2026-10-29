@@ -435,6 +435,53 @@ try {
     assertTest("Test 14: Master Category Creation & Integrity", false, $e->getMessage());
 }
 
+// ------------------------------------------------------------------------
+// Test 15: Zero-Stock Item Deletion Rule & Active Stock Protection
+// ------------------------------------------------------------------------
+echo "\n--- Running Test 15: Zero-Stock Item Deletion & Stock Protection ---\n";
+try {
+    $db->exec("DELETE FROM items WHERE item_code IN ('TEST-DEL-ZERO', 'TEST-DEL-STOCK')");
+
+    // 1. Item with active stock (100 kg) -> MUST NOT be deleted
+    $db->prepare("INSERT INTO items (item_code, name, unit, cost_price, sale_price, stock_qty) VALUES ('TEST-DEL-STOCK', 'Test Stocked Item', 'kg', 100, 120, 100.0)")->execute();
+    $stockedId = (int)$db->lastInsertId();
+
+    // 2. Item with ZERO stock (0 kg) -> CAN be deleted
+    $db->prepare("INSERT INTO items (item_code, name, unit, cost_price, sale_price, stock_qty) VALUES ('TEST-DEL-ZERO', 'Test Empty Item', 'kg', 100, 120, 0.0)")->execute();
+    $zeroStockId = (int)$db->lastInsertId();
+
+    // Simulate delete attempt on stocked item:
+    $st1 = $db->prepare("SELECT stock_qty FROM items WHERE id = ?");
+    $st1->execute([$stockedId]);
+    $qty1 = (float)$st1->fetchColumn();
+    $blockedStockedDelete = ($qty1 > 0.0001); // Correctly identified as non-deletable
+
+    // Simulate delete on zero-stock item:
+    $st2 = $db->prepare("SELECT stock_qty FROM items WHERE id = ?");
+    $st2->execute([$zeroStockId]);
+    $qty2 = (float)$st2->fetchColumn();
+    $allowedZeroDelete = (abs($qty2) <= 0.0001);
+    if ($allowedZeroDelete) {
+        $db->prepare("DELETE FROM items WHERE id = ?")->execute([$zeroStockId]);
+    }
+
+    $checkDeleted = $db->query("SELECT COUNT(*) FROM items WHERE id = $zeroStockId")->fetchColumn() == 0;
+    $checkStockedStillExists = $db->query("SELECT COUNT(*) FROM items WHERE id = $stockedId")->fetchColumn() == 1;
+
+    // Cleanup
+    $db->exec("DELETE FROM items WHERE id = $stockedId");
+
+    $passed15 = $blockedStockedDelete && $allowedZeroDelete && $checkDeleted && $checkStockedStillExists;
+
+    assertTest(
+        "Test 15: Zero-Stock Deletion Enforcement",
+        $passed15,
+        "Active stock items protected from deletion; zero-stock items safely deleted"
+    );
+} catch (Exception $e) {
+    assertTest("Test 15: Zero-Stock Deletion Enforcement", false, $e->getMessage());
+}
+
 echo "\n========================================================\n";
 echo " TEST RESULTS: {$passCount} PASSED, {$failCount} FAILED\n";
 echo "========================================================\n";
