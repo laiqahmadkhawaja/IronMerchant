@@ -48,8 +48,9 @@ $totalDue = (float)$stats[3];
 // Bills list
 $stmt = $db->prepare("
     SELECT 
-        s.id, s.invoice_no, s.sale_date, s.sale_time, s.customer_id, p.name AS customer_name, p.phone AS customer_phone,
-        s.subtotal, s.additional_charges, s.discount, s.grand_total, s.paid_amount, s.due_amount,
+        s.id, s.invoice_no, s.sale_date, s.sale_time, s.customer_id, s.customer_name_custom, s.customer_phone_custom,
+        p.name AS customer_name, p.phone AS customer_phone,
+        s.subtotal, s.labour_charge, s.delivery_charge, s.additional_charges, s.discount, s.grand_total, s.paid_amount, s.due_amount,
         s.payment_status, s.payment_method, (s.grand_total - s.total_cogs) AS profit, s.status
     FROM sales s
     JOIN parties p ON s.customer_id = p.id
@@ -117,8 +118,18 @@ $isOwner = ($role === 'Owner');
               <td><strong><?= htmlspecialchars($b['invoice_no']) ?></strong></td>
               <td><?= $b['sale_date'] ?> <small class="text-muted"><?= $b['sale_time'] ?></small></td>
               <td>
-                <strong><?= htmlspecialchars($b['customer_name']) ?></strong>
-                <?php if (!empty($b['customer_phone'])): ?><br><small class="text-muted"><?= $b['customer_phone'] ?></small><?php endif; ?>
+                <?php if (!empty($b['customer_name_custom'])): ?>
+                  <strong><?= htmlspecialchars($b['customer_name_custom']) ?></strong>
+                  <br><small class="text-muted"><?= htmlspecialchars($b['customer_name']) ?></small>
+                <?php else: ?>
+                  <strong><?= htmlspecialchars($b['customer_name']) ?></strong>
+                <?php endif; ?>
+                <?php 
+                  $dispP = !empty($b['customer_phone_custom']) ? $b['customer_phone_custom'] : ($b['customer_phone'] ?? '');
+                  if (!empty($dispP)): 
+                ?>
+                  <br><small class="text-muted"><i class="fa-solid fa-phone me-1"></i><?= htmlspecialchars($dispP) ?></small>
+                <?php endif; ?>
               </td>
               <td class="fw-bold"><?= formatMoney($b['grand_total']) ?></td>
               <td><?= formatMoney($b['paid_amount']) ?></td>

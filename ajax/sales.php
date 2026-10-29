@@ -150,6 +150,8 @@ if ($action === 'create') {
     }
     $notes = trim((string)($_POST['notes'] ?? ''));
     $paidAmountInput = $_POST['paid_amount'] ?? null;
+    $custNameCustom = trim((string)($_POST['customer_name_custom'] ?? ''));
+    $custPhoneCustom = trim((string)($_POST['customer_phone_custom'] ?? ''));
 
     if (empty($items)) {
         jsonError('Please add at least one item to the bill.');
@@ -172,8 +174,8 @@ if ($action === 'create') {
         || (stripos((string)$customer['name'], 'cash customer') !== false);
 
     // Rule: Walk-in customers CANNOT have credit sales or unpaid dues
-    if ($isWalkIn && strcasecmp($paymentMethod, 'Credit') === 0) {
-        jsonError('Credit sales are strictly prohibited for Walk-in Customers. Please collect cash or bank payment. (واک ان / عام گاہک کو ادھار پر مال فروخت نہیں کیا جا سکتا۔ مکمل رقم وصول کریں)');
+    if ($isWalkIn && strcasecmp($paymentMethod, 'Credit') === 0 && ($paidAmountInput === null || (float)$paidAmountInput <= 0)) {
+        jsonError('Pure credit sales without advance payment are prohibited for Walk-in Customers. Please record advance payment; remaining balance will be due upon site unloading. (واک ان گاہک کے لیے کم از کم پیشگی رقم وصول کریں)');
     }
 
     // Start database transaction
@@ -214,45 +216,41 @@ if ($action === 'create') {
         $additionalCharges = $labourCharge + $deliveryCharge;
         $grandTotal = round(($subtotal + $additionalCharges) - $discount, 2);
 
-        // Walk-in Customer Credit Check & Paid Amount Logic
-        if ($isWalkIn) {
-            if ($paidAmountInput !== null && $paidAmountInput !== '') {
-                $enteredPaid = (float)$paidAmountInput;
-                if ($enteredPaid < $grandTotal) {
-                    throw new InvalidArgumentException("Credit/partial dues are not allowed for Walk-in Customers. Full payment of Rs " . number_format($grandTotal, 2) . " is required. (واک ان گاہک کو ادھار کی اجازت نہیں ہے۔ مکمل رقم وصول کریں)");
-                }
-            }
+        // Paid Amount & Advance Handling (Walk-in allows advance with remaining payable upon delivery)
+        if ($paidAmountInput === null || $paidAmountInput === '') {
             $paidAmount = $grandTotal;
-            $dueAmount = 0.00;
-            $paymentStatus = 'Paid';
         } else {
-            // Regular khata customer: allows partial/unpaid credit sales
-            if ($paidAmountInput === null || $paidAmountInput === '') {
-                $paidAmount = $grandTotal;
-            } else {
-                $paidAmount = max(0.0, (float)$paidAmountInput);
-            }
+            $paidAmount = max(0.0, (float)$paidAmountInput);
+        }
 
-            if ($paidAmount > $grandTotal) {
-                $paidAmount = $grandTotal;
-            }
+        if ($paidAmount > $grandTotal) {
+            $paidAmount = $grandTotal;
+        }
 
-            $dueAmount = round($grandTotal - $paidAmount, 2);
-            $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
+        $dueAmount = round($grandTotal - $paidAmount, 2);
+        $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
+
+        if ($isWalkIn && $dueAmount > 0) {
+            $deliveryNote = "Advance Paid: Rs " . number_format($paidAmount, 2) . " | Due on Site Unloading: Rs " . number_format($dueAmount, 2) . " (مال اتروائی پر بقیہ وصولی)";
+            $notes = $notes ? ($notes . " | " . $deliveryNote) : $deliveryNote;
         }
 
         // 2. Insert sales header
         $saleStmt = $db->prepare("
             INSERT INTO `sales` 
-            (`invoice_no`, `customer_id`, `sale_date`, `sale_time`, `subtotal`, `additional_charges`, `discount`, `tax_amount`, `grand_total`, `paid_amount`, `due_amount`, `payment_status`, `payment_method`, `payment_account_id`, `total_cogs`, `status`, `notes`, `created_by`, `created_at`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, 0.00, 'posted', ?, ?, NOW())
+            (`invoice_no`, `customer_id`, `customer_name_custom`, `customer_phone_custom`, `sale_date`, `sale_time`, `subtotal`, `labour_charge`, `delivery_charge`, `additional_charges`, `discount`, `tax_amount`, `grand_total`, `paid_amount`, `due_amount`, `payment_status`, `payment_method`, `payment_account_id`, `total_cogs`, `status`, `notes`, `created_by`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, 0.00, 'posted', ?, ?, NOW())
         ");
         $saleStmt->execute([
             $invoiceNo,
             $customerId,
+            $custNameCustom ?: null,
+            $custPhoneCustom ?: null,
             $saleDate,
             $saleTime,
             $subtotal,
+            $labourCharge,
+            $deliveryCharge,
             $additionalCharges,
             $discount,
             $grandTotal,

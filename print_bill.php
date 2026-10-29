@@ -40,6 +40,23 @@ $chargesStmt = $db->prepare("SELECT * FROM sale_charges WHERE sale_id = ?");
 $chargesStmt->execute([$id]);
 $charges = $chargesStmt->fetchAll();
 
+// Extract labour & delivery charges separately
+$labourAmount = (float)($sale['labour_charge'] ?? 0);
+$deliveryAmount = (float)($sale['delivery_charge'] ?? 0);
+if ($labourAmount <= 0 && $deliveryAmount <= 0 && !empty($charges)) {
+    foreach ($charges as $ch) {
+        $chName = strtolower((string)$ch['charge_name']);
+        if (str_contains($chName, 'labour') || str_contains($chName, 'crane')) {
+            $labourAmount += (float)$ch['amount'];
+        } elseif (str_contains($chName, 'delivery') || str_contains($chName, 'freight')) {
+            $deliveryAmount += (float)$ch['amount'];
+        }
+    }
+}
+
+$displayCustomerName = !empty($sale['customer_name_custom']) ? $sale['customer_name_custom'] : $sale['customer_name'];
+$displayCustomerPhone = !empty($sale['customer_phone_custom']) ? $sale['customer_phone_custom'] : ($sale['customer_phone'] ?? '');
+
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
@@ -388,9 +405,9 @@ foreach ($items as $it) {
         <span>TIME: <?= date('h:i A', strtotime($sale['sale_time'])) ?></span>
         <span>OP: <?= htmlspecialchars($sale['cashier_name'] ?? 'Admin') ?></span>
       </div>
-      <div class="th-meta">CUSTOMER: <?= htmlspecialchars($sale['customer_name']) ?></div>
-      <?php if (!empty($sale['customer_phone'])): ?>
-        <div class="th-meta">PHONE: <?= htmlspecialchars($sale['customer_phone']) ?></div>
+      <div class="th-meta">CUSTOMER: <?= htmlspecialchars($displayCustomerName) ?></div>
+      <?php if (!empty($displayCustomerPhone)): ?>
+        <div class="th-meta">PHONE: <?= htmlspecialchars($displayCustomerPhone) ?></div>
       <?php endif; ?>
       <div class="th-meta">PAYMENT: <?= htmlspecialchars($sale['payment_method']) ?></div>
 
@@ -426,7 +443,19 @@ foreach ($items as $it) {
         <span>Items Subtotal:</span>
         <span class="font-num"><?= number_format((float)$sale['subtotal'], 2) ?></span>
       </div>
-      <?php if ((float)$sale['additional_charges'] > 0): ?>
+      <?php if ($labourAmount > 0): ?>
+        <div class="th-row th-meta">
+          <span>Labour / Crane (مزدوری):</span>
+          <span class="font-num">+ <?= number_format($labourAmount, 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ($deliveryAmount > 0): ?>
+        <div class="th-row th-meta">
+          <span>Delivery / Freight (کرایہ):</span>
+          <span class="font-num">+ <?= number_format($deliveryAmount, 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
         <div class="th-row th-meta">
           <span>Labour / Delivery:</span>
           <span class="font-num">+ <?= number_format((float)$sale['additional_charges'], 2) ?></span>
@@ -445,11 +474,11 @@ foreach ($items as $it) {
       </div>
 
       <div class="th-row th-due">
-        <span>Paid Amount:</span>
+        <span>Paid Amount / Advance:</span>
         <span class="font-num"><?= number_format((float)$sale['paid_amount'], 2) ?></span>
       </div>
-      <div class="th-row th-due">
-        <span>This Bill Due:</span>
+      <div class="th-row th-due" style="<?= (float)$sale['due_amount'] > 0 ? 'color: #991b1b; font-weight: bold;' : '' ?>">
+        <span><?= ((float)$sale['due_amount'] > 0) ? 'Due on Delivery (بقیہ مال اتروائی پر):' : 'This Bill Due:' ?></span>
         <span class="font-num"><?= number_format((float)$sale['due_amount'], 2) ?></span>
       </div>
 
@@ -523,11 +552,14 @@ foreach ($items as $it) {
               <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">نام خریدار</span>
             </div>
             <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 2px;">
-              <?= htmlspecialchars($sale['customer_name']) ?>
+              <?= htmlspecialchars($displayCustomerName) ?>
+              <?php if (!empty($sale['customer_name_custom']) && $sale['customer_name'] !== $sale['customer_name_custom']): ?>
+                <span class="badge bg-light text-secondary border ms-1" style="font-size: 11px; font-weight: normal;"><?= htmlspecialchars($sale['customer_name']) ?></span>
+              <?php endif; ?>
             </div>
             <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
-              <?php if (!empty($sale['customer_phone'])): ?>
-                <div><i class="fa-solid fa-phone me-1"></i> Phone: <strong><?= htmlspecialchars($sale['customer_phone']) ?></strong></div>
+              <?php if (!empty($displayCustomerPhone)): ?>
+                <div><i class="fa-solid fa-phone me-1"></i> Phone: <strong><?= htmlspecialchars($displayCustomerPhone) ?></strong></div>
               <?php endif; ?>
               <?php if (!empty($sale['customer_address'])): ?>
                 <div><i class="fa-solid fa-map-marker-alt me-1"></i> Address: <?= htmlspecialchars($sale['customer_address']) ?></div>
@@ -684,11 +716,31 @@ foreach ($items as $it) {
               <span class="font-num fw-bold"><?= formatMoney($sale['subtotal']) ?></span>
             </div>
 
-            <?php if ((float)$sale['additional_charges'] > 0): ?>
+            <?php if ($labourAmount > 0): ?>
+              <div class="d-flex justify-content-between align-items-center py-1 text-primary">
+                <div class="d-flex align-items-center gap-1">
+                  <span>Labour / Crane Charges</span>
+                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">مزدوری چارجز</span>
+                </div>
+                <span class="font-num fw-bold">+ <?= formatMoney($labourAmount) ?></span>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($deliveryAmount > 0): ?>
+              <div class="d-flex justify-content-between align-items-center py-1 text-primary">
+                <div class="d-flex align-items-center gap-1">
+                  <span>Delivery / Freight Charges</span>
+                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">گاڑی کرایہ / فریٹ چارجز</span>
+                </div>
+                <span class="font-num fw-bold">+ <?= formatMoney($deliveryAmount) ?></span>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
               <div class="d-flex justify-content-between align-items-center py-1 text-primary">
                 <div class="d-flex align-items-center gap-1">
                   <span>Labour / Freight</span>
-                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">مزدوری</span>
+                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">مزدوری و کرایہ</span>
                 </div>
                 <span class="font-num fw-bold">+ <?= formatMoney($sale['additional_charges']) ?></span>
               </div>
@@ -714,16 +766,16 @@ foreach ($items as $it) {
 
             <div class="d-flex justify-content-between align-items-center py-1 mt-1">
               <div class="d-flex align-items-center gap-1">
-                <span>Paid Amount</span>
-                <span class="ur text-muted" dir="rtl" style="font-size: 11px; line-height: 1.4;">وصول شدہ</span>
+                <span>Paid Amount / Advance</span>
+                <span class="ur text-muted" dir="rtl" style="font-size: 11px; line-height: 1.4;">ادا شدہ رقم / پیشگی</span>
               </div>
               <span class="font-num fw-bold text-success"><?= formatMoney($sale['paid_amount']) ?></span>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center py-1 fw-bold <?= (float)$sale['due_amount'] > 0 ? 'text-danger' : 'text-success' ?>">
+            <div class="d-flex justify-content-between align-items-center py-1 fw-bold <?= (float)$sale['due_amount'] > 0 ? 'text-danger' : 'text-success' ?>" <?= (float)$sale['due_amount'] > 0 ? 'style="background: #fef2f2; padding: 4px 6px; border-radius: 4px;"' : '' ?>>
               <div class="d-flex align-items-center gap-1">
-                <span>Balance Due</span>
-                <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;">اس بل کا بقایا</span>
+                <span><?= ((float)$sale['due_amount'] > 0) ? 'Due on Site Delivery / Unloading' : 'Balance Due' ?></span>
+                <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;"><?= ((float)$sale['due_amount'] > 0) ? '(مال اتروائی پر بقیہ وصولی)' : 'اس بل کا بقایا' ?></span>
               </div>
               <span class="font-num fs-6"><?= formatMoney($sale['due_amount']) ?></span>
             </div>

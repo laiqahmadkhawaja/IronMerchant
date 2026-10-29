@@ -110,12 +110,24 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         </div>
       </div>
 
+      <!-- Optional Customer Name & Phone for Invoice Printing -->
+      <div class="row g-2 mb-2">
+        <div class="col-7">
+          <label class="form-label" style="font-size: 12.5px;">Customer Name on Bill (اختیاری نام) <span class="text-muted small">(Optional)</span></label>
+          <input type="text" id="custNameCustom" class="form-control" placeholder="Optional name (e.g. Haji Aslam / Site Manager)">
+        </div>
+        <div class="col-5">
+          <label class="form-label" style="font-size: 12.5px;">Phone / WhatsApp (اختیاری فون) <span class="text-muted small">(Optional)</span></label>
+          <input type="text" id="custPhoneCustom" class="form-control" placeholder="Optional 0300-1234567">
+        </div>
+      </div>
+
       <!-- Walk-in Customer Credit Warning Banner -->
-      <div id="walkInNotice" class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12px; border-radius: 8px;">
-        <i class="fa-solid fa-circle-exclamation text-warning fs-5"></i>
+      <div id="walkInNotice" class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12.5px; border-radius: 8px;">
+        <i class="fa-solid fa-truck-ramp-box text-primary fs-5"></i>
         <div>
-          <strong>Walk-in Cash Customer (واک ان گاہک):</strong>
-          <span>Credit/udhaar is strictly not allowed. Full cash or bank payment required. (ادھار کی اجازت نہیں ہے)</span>
+          <strong>Walk-in Policy (واک ان گاہک):</strong>
+          <span>Advance payment accepted; any remaining balance is payable upon site delivery/unloading (پیشگی وصولی + بقیہ رقم موقع پر مال اتروائی پر واجب الادا). Pure credit is not allowed.</span>
         </div>
       </div>
 
@@ -188,7 +200,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
           <span class="fs-3 fw-bold text-warning" id="grandTotalDisplay">Rs 0.00</span>
         </div>
         <div class="d-flex justify-content-between align-items-center">
-          <span class="small" style="opacity:0.85;">Remaining Balance Due:</span>
+          <span class="small" style="opacity:0.85;" id="dueAmountDisplayLabel">Remaining Balance Due:</span>
           <span class="fs-5 fw-bold" style="color:#ff999c;" id="dueAmountDisplay">Rs 0.00</span>
         </div>
       </div>
@@ -231,11 +243,16 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         if (notice) notice.style.display = 'flex';
         if (creditOption) creditOption.disabled = true;
         if (paySelect.value === 'Credit') paySelect.value = 'Cash';
-        paidInput.placeholder = 'Full Cash/Bank (ادھار ممنوع ہے)';
+        paidInput.placeholder = 'Blank = Full Pay / Enter Advance (پیشگی)';
       } else {
         if (notice) notice.style.display = 'none';
         if (creditOption) creditOption.disabled = false;
         paidInput.placeholder = 'Blank = Full Pay';
+      }
+      const ph = opt.getAttribute('data-phone') || '';
+      const phoneInput = document.getElementById('custPhoneCustom');
+      if (phoneInput && !phoneInput.value && ph) {
+        phoneInput.value = ph;
       }
       calculateBillTotals();
     }
@@ -324,19 +341,13 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     let paid = 0;
     let due = 0;
 
-    if (isWalkIn) {
-      // Walk-in customers CANNOT have credit: force full payment, due is always 0
-      paid = grand;
-      due = 0;
-      if (paidInput.value !== '' && parseFloat(paidInput.value) < grand) {
-        paidInput.classList.add('is-invalid');
-      } else {
-        paidInput.classList.remove('is-invalid');
-      }
-    } else {
-      paidInput.classList.remove('is-invalid');
-      paid = (paidInput.value === '' || paidInput.value === null) ? grand : parseFloat(paidInput.value) || 0;
-      due = Math.max(0, grand - paid);
+    paidInput.classList.remove('is-invalid');
+    paid = (paidInput.value === '' || paidInput.value === null) ? grand : parseFloat(paidInput.value) || 0;
+    due = Math.max(0, grand - paid);
+
+    const dueLabel = document.getElementById('dueAmountDisplayLabel');
+    if (dueLabel) {
+      dueLabel.innerText = (isWalkIn && due > 0) ? 'Remaining on Delivery (مال اتروائی پر بقیہ):' : 'Remaining Balance Due:';
     }
 
     document.getElementById('grandTotalDisplay').innerText = 'Rs ' + grand.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -362,12 +373,8 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     const grand = Math.max(0, (subtotal + labour + delivery) - discount);
 
     if (isWalkIn) {
-      if (payMethod === 'Credit') {
-        alert('واک ان / عام گاہک کو ادھار کی اجازت نہیں ہے۔ براہ کرم نقد یا بینک وصول کریں۔');
-        return;
-      }
-      if (paidVal !== '' && parseFloat(paidVal) < grand) {
-        alert('واک ان گاہک کے لیے ادھار یا نامکمل رقم کی اجازت نہیں ہے۔ مکمل رقم ' + grand.toLocaleString() + ' روپے وصول کرنا لازمی ہے۔');
+      if (payMethod === 'Credit' && (!paidVal || parseFloat(paidVal) <= 0)) {
+        alert('واک ان گاہک کے لیے 100% ادھار کی اجازت نہیں ہے۔ برائے مہربانی کم از کم پیشگی رقم درج کریں، بقیہ رقم مال اتروائی پر وصول کی جائے گی۔');
         return;
       }
     }
@@ -385,6 +392,8 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     formData.append('payment_method', document.getElementById('paymentMethod').value);
     formData.append('payment_account_id', document.getElementById('depositAccount').value);
     formData.append('paid_amount', document.getElementById('paidAmount').value);
+    formData.append('customer_name_custom', document.getElementById('custNameCustom').value.trim());
+    formData.append('customer_phone_custom', document.getElementById('custPhoneCustom').value.trim());
 
     try {
       const res = await fetch('ajax/sales.php?action=create', { method: 'POST', body: formData });
