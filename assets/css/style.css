@@ -86,6 +86,30 @@ h1, h2, h3, h4, h5, h6 {
   transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out !important;
 }
 
+/* ==========================================================================
+   HIDE ALL DROPDOWN ICONS / CARET ARROWS SYSTEM-WIDE
+   ========================================================================== */
+select,
+.form-select,
+select.form-control,
+.form-select:focus,
+select:focus {
+  background-image: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  padding-right: 12px !important;
+}
+
+select::-ms-expand,
+.form-select::-ms-expand {
+  display: none !important;
+}
+
+.dropdown-toggle::after {
+  display: none !important;
+}
+
 .form-control:focus, .form-select:focus {
   border-color: var(--nv) !important;
   box-shadow: 0 0 0 3px rgba(20, 48, 122, 0.15) !important;
