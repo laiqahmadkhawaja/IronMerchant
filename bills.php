@@ -149,7 +149,7 @@ $isOwner = ($role === 'Owner');
                 <td class="text-success fw-bold"><?= formatMoney($b['profit']) ?></td>
               <?php endif; ?>
               <td class="text-end">
-                <a href="print_bill.php?id=<?= $b['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-print me-1"></i> Print</a>
+                <a href="print_bill.php?id=<?= $b['id'] ?>&size=80" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-print me-1"></i> Print</a>
                 <?php if ($isOwner && $b['status'] === 'posted'): ?>
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="cancelSaleBill(<?= $b['id'] ?>, '<?= $b['invoice_no'] ?>')">
                     Cancel

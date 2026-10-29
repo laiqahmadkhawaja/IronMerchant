@@ -39,22 +39,54 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
 
   <!-- Main Content Layout -->
   <div class="app-main">
-    <!-- Sticky Header Banner (Preserving Zafar Brothers Brand Identity) -->
+    <!-- Executive Header Banner -->
     <header class="header-banner">
-      <button class="btn btn-sm btn-outline-light d-lg-none me-2" onclick="document.querySelector('.app-sidebar').classList.toggle('show')">
-        <i class="fa-solid fa-bars"></i>
-      </button>
+      <!-- Left: Logo & Brand Information -->
+      <div class="header-brand-left">
+        <button class="btn btn-sm btn-outline-light d-lg-none" onclick="document.querySelector('.app-sidebar').classList.toggle('show')" title="Toggle Menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
 
-      <img src="assets/images/logo.png" alt="Zafar Brothers Logo">
+        <div class="header-logo-wrapper">
+          <img src="assets/images/logo.png" alt="Zafar Brothers Logo">
+        </div>
 
-      <div class="hn">
-        <div class="ur"><?= htmlspecialchars($companyUrdu) ?></div>
-        <b><?= htmlspecialchars($companyName) ?> · Gujranwala Steel Group</b>
+        <div class="header-brand-text">
+          <div class="header-company-title"><?= htmlspecialchars($companyName) ?></div>
+          <div class="header-company-subtitle">
+            <span>Gujranwala Steel Group</span>
+            <span class="badge">EST. 1988</span>
+          </div>
+        </div>
       </div>
 
-      <div class="clock" id="liveClock">
-        <b><?= date('h:i A') ?></b>
-        <span><?= date('D, d M Y') ?></span>
+      <!-- Center: Urdu Calligraphy & Motto -->
+      <div class="header-center-crest d-none d-md-flex">
+        <div class="header-urdu-title"><?= htmlspecialchars($companyUrdu) ?></div>
+        <div class="header-urdu-motto">آپ کے اعتماد کا شکریہ — معیاری سریا، ایماندار وزن</div>
+      </div>
+
+      <!-- Right: User Identity & Digital Clock -->
+      <div class="header-right-tools">
+        <div class="header-user-pill d-none d-xl-flex">
+          <div class="header-user-avatar">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <div class="header-user-info">
+            <span class="user-name"><?= htmlspecialchars($currentUser['name'] ?? 'User') ?></span>
+            <span class="user-role"><?= htmlspecialchars($role) ?></span>
+          </div>
+        </div>
+
+        <div class="header-clock-card" id="liveClockCard">
+          <div class="clock-icon">
+            <i class="fa-regular fa-clock"></i>
+          </div>
+          <div class="clock-details" id="liveClock">
+            <div class="clock-time" id="liveClockTime"><?= date('h:i:s A') ?></div>
+            <div class="clock-date" id="liveClockDate"><?= date('D, d M Y') ?></div>
+          </div>
+        </div>
       </div>
     </header>
 

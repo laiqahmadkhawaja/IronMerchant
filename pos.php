@@ -476,7 +476,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       const res = await fetch('ajax/sales.php?action=create', { method: 'POST', body: formData });
       const json = await res.json();
       if (json.success) {
-        const printUrl = `print_bill.php?id=${json.data.id}`;
+        const printUrl = `print_bill.php?id=${json.data.id}&size=80`;
         // Open bill print in new tab
         const win = window.open(printUrl, '_blank');
 
