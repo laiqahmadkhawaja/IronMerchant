@@ -124,74 +124,118 @@ $topRec = $db->query("
     <h3 class="fw-bold mb-1" style="color:var(--nv);">Dashboard · کاروباری خلاصہ</h3>
     <small class="text-secondary">Server Database: MySQL 8 · Real-time Accounting &amp; Steel Stock</small>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-2" id="btnToggleKpi" onclick="toggleAllKpis()" style="border-radius: 6px; font-weight: 500; height: 38px;">
+      <i class="fa-regular fa-eye" id="kpiGlobalEye"></i>
+      <span id="kpiGlobalText">Show Values (رقم دیکھیں)</span>
+    </button>
     <a href="pos.php" class="btn btn-zb-gold"><i class="fa-solid fa-cash-register me-1"></i> New Bill (نیا بل بنائیں)</a>
     <a href="purchases.php" class="btn btn-zb-primary"><i class="fa-solid fa-truck-ramp-box me-1"></i> Purchase Entry</a>
   </div>
 </div>
 
-<!-- KPI Cards Grid -->
+<!-- KPI Cards Grid (Hidden by Default) -->
 <div class="row g-3 mb-4">
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: var(--nv);">
+    <div class="kpi-card position-relative" style="--kpi-color: var(--nv);">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Today's Sales (آج کی فروخت)</div>
-      <div class="kpi-value text-primary"><?= formatMoney($todaySales) ?></div>
+      <div class="kpi-value text-primary">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todaySales)) ?>">Rs ••••••</span>
+      </div>
       <div class="kpi-sub"><?= (int)$todaySalesData['total_bills'] ?> bills generated today</div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: var(--gn);">
+    <div class="kpi-card position-relative" style="--kpi-color: var(--gn);">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Today's Gross Profit (خام منافع)</div>
-      <div class="kpi-value text-success"><?= formatMoney($todayGrossProfit) ?></div>
+      <div class="kpi-value text-success">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todayGrossProfit)) ?>">Rs ••••••</span>
+      </div>
       <div class="kpi-sub">Calculated after real stock COGS</div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: var(--am);">
+    <div class="kpi-card position-relative" style="--kpi-color: var(--am);">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">This Month Net Profit (خالص منافع)</div>
-      <div class="kpi-value" style="color: #b8900a;"><?= formatMoney($monthNetProfit) ?></div>
-      <div class="kpi-sub">Sales: <?= formatMoney($monthSales) ?></div>
+      <div class="kpi-value" style="color: #b8900a;">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($monthNetProfit)) ?>">Rs ••••••</span>
+      </div>
+      <div class="kpi-sub">Sales: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($monthSales)) ?>">Rs ••••••</span></div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: var(--rd);">
+    <div class="kpi-card position-relative" style="--kpi-color: var(--rd);">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Customer Receivables (کسٹمر ادھار)</div>
-      <div class="kpi-value text-danger"><?= formatMoney($totalRec) ?></div>
-      <div class="kpi-sub">Payable to Mills: <?= formatMoney($totalPay) ?></div>
+      <div class="kpi-value text-danger">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($totalRec)) ?>">Rs ••••••</span>
+      </div>
+      <div class="kpi-sub">Payable to Mills: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($totalPay)) ?>">Rs ••••••</span></div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: #13a8b4;">
+    <div class="kpi-card position-relative" style="--kpi-color: #13a8b4;">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Today's Cash Collected (وصولی)</div>
-      <div class="kpi-value" style="color: #13a8b4;"><?= formatMoney($todayTotalCollections) ?></div>
-      <div class="kpi-sub">Counter: <?= formatMoney($todaySalesData['today_sales_collected']) ?> | Recoveries: <?= formatMoney($todayCustReceipts) ?></div>
+      <div class="kpi-value" style="color: #13a8b4;">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todayTotalCollections)) ?>">Rs ••••••</span>
+      </div>
+      <div class="kpi-sub">Counter: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todaySalesData['today_sales_collected'])) ?>">Rs ••••••</span> | Recoveries: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todayCustReceipts)) ?>">Rs ••••••</span></div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: #7a4fd6;">
+    <div class="kpi-card position-relative" style="--kpi-color: #7a4fd6;">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Total Cash &amp; Bank Funds</div>
-      <div class="kpi-value" style="color: #7a4fd6;"><?= formatMoney($cashFunds + $bankFunds) ?></div>
-      <div class="kpi-sub">Cash: <?= formatMoney($cashFunds) ?> | Banks: <?= formatMoney($bankFunds) ?></div>
+      <div class="kpi-value" style="color: #7a4fd6;">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($cashFunds + $bankFunds)) ?>">Rs ••••••</span>
+      </div>
+      <div class="kpi-sub">Cash: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($cashFunds)) ?>">Rs ••••••</span> | Banks: <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($bankFunds)) ?>">Rs ••••••</span></div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: var(--rd);">
+    <div class="kpi-card position-relative" style="--kpi-color: var(--rd);">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Today's Operating Expenses</div>
-      <div class="kpi-value text-danger"><?= formatMoney($todayExpenses) ?></div>
+      <div class="kpi-value text-danger">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($todayExpenses)) ?>">Rs ••••••</span>
+      </div>
       <div class="kpi-sub">Rent, Labour, Electricity, etc.</div>
     </div>
   </div>
 
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="kpi-card" style="--kpi-color: #f08a24;">
+    <div class="kpi-card position-relative" style="--kpi-color: #f08a24;">
+      <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
+        <i class="fa-regular fa-eye-slash"></i>
+      </button>
       <div class="kpi-title">Inventory Valuation (سٹاک مالیت)</div>
-      <div class="kpi-value" style="color: #f08a24;"><?= formatMoney($stockVal) ?></div>
+      <div class="kpi-value" style="color: #f08a24;">
+        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($stockVal)) ?>">Rs ••••••</span>
+      </div>
       <div class="kpi-sub <?= $lowStockCount > 0 ? 'text-danger fw-bold' : 'text-success' ?>">
         <?= $lowStockCount ?> low-stock alerts
       </div>
@@ -293,5 +337,57 @@ $topRec = $db->query("
     </div>
   </div>
 </div>
+
+<script>
+let _kpisVisible = false; // Hidden by default
+
+function toggleAllKpis() {
+  _kpisVisible = !_kpisVisible;
+  const btnIcon = document.getElementById('kpiGlobalEye');
+  const btnText = document.getElementById('kpiGlobalText');
+  const amounts = document.querySelectorAll('.kpi-amount');
+  const cardEyes = document.querySelectorAll('.kpi-eye-btn i');
+
+  if (_kpisVisible) {
+    if (btnIcon) btnIcon.className = 'fa-regular fa-eye-slash';
+    if (btnText) btnText.innerText = 'Hide Values (رقم چھپائیں)';
+    amounts.forEach(el => {
+      el.innerText = el.getAttribute('data-real') || el.innerText;
+    });
+    cardEyes.forEach(i => {
+      i.className = 'fa-regular fa-eye';
+    });
+  } else {
+    if (btnIcon) btnIcon.className = 'fa-regular fa-eye';
+    if (btnText) btnText.innerText = 'Show Values (رقم دیکھیں)';
+    amounts.forEach(el => {
+      el.innerText = 'Rs ••••••';
+    });
+    cardEyes.forEach(i => {
+      i.className = 'fa-regular fa-eye-slash';
+    });
+  }
+}
+
+function toggleSingleCard(btn) {
+  const card = btn.closest('.kpi-card');
+  if (!card) return;
+  const cardAmounts = card.querySelectorAll('.kpi-amount');
+  const icon = btn.querySelector('i');
+  const isCurrentlyHidden = (cardAmounts[0]?.innerText.includes('•'));
+
+  if (isCurrentlyHidden) {
+    cardAmounts.forEach(el => {
+      el.innerText = el.getAttribute('data-real') || el.innerText;
+    });
+    if (icon) icon.className = 'fa-regular fa-eye';
+  } else {
+    cardAmounts.forEach(el => {
+      el.innerText = 'Rs ••••••';
+    });
+    if (icon) icon.className = 'fa-regular fa-eye-slash';
+  }
+}
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
