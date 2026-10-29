@@ -57,6 +57,44 @@ function getCompanySettings(): array {
         $db = getDB();
         $stmt = $db->query("SELECT setting_key, setting_value FROM company_settings");
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
+        // Auto-heal corrupted question marks from legacy non-UTF8 SQL imports
+        $needsDbUpdate = false;
+        $canonicalUrdu = 'ظفر برادرز آئرن مرچنٹس';
+        $canonicalMotto = 'آپ کے اعتماد کا شکریہ — معیاری سریا، ایماندار وزن، بھروسے کا نام';
+
+        if (empty($settings['company_urdu']) || strpos($settings['company_urdu'], '?') !== false) {
+            $settings['company_urdu'] = $canonicalUrdu;
+            $needsDbUpdate = true;
+        }
+        if (empty($settings['company_motto_urdu']) || strpos($settings['company_motto_urdu'], '?') !== false) {
+            $settings['company_motto_urdu'] = $canonicalMotto;
+            $needsDbUpdate = true;
+        }
+        if (isset($settings['company_phone']) && strpos($settings['company_phone'], '??') !== false) {
+            $settings['company_phone'] = str_replace('??', '·', $settings['company_phone']);
+            $needsDbUpdate = true;
+        }
+        if (isset($settings['company_landline']) && strpos($settings['company_landline'], '??') !== false) {
+            $settings['company_landline'] = str_replace('??', '·', $settings['company_landline']);
+            $needsDbUpdate = true;
+        }
+
+        if ($needsDbUpdate) {
+            try {
+                $upd = $db->prepare("UPDATE company_settings SET setting_value = ? WHERE setting_key = ?");
+                $upd->execute([$settings['company_urdu'], 'company_urdu']);
+                $upd->execute([$settings['company_motto_urdu'], 'company_motto_urdu']);
+                if (isset($settings['company_phone'])) {
+                    $upd->execute([$settings['company_phone'], 'company_phone']);
+                }
+                if (isset($settings['company_landline'])) {
+                    $upd->execute([$settings['company_landline'], 'company_landline']);
+                }
+            } catch (Throwable $t) {
+                // Ignore if read-only or restricted
+            }
+        }
     }
     return $settings;
 }

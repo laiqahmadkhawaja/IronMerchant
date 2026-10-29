@@ -28,9 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_company_settings') {
             $settings = [
                 'company_name'         => trim($_POST['company_name'] ?? 'Zafar Brothers Iron Merchants'),
-                'company_urdu'         => trim($_POST['company_urdu'] ?? 'ظفر برادرز آئرن مرچنٹس'),
+                'company_urdu'         => (!empty($_POST['company_urdu']) && strpos($_POST['company_urdu'], '?') === false) ? trim($_POST['company_urdu']) : 'ظفر برادرز آئرن مرچنٹس',
                 'company_tagline'      => trim($_POST['company_tagline'] ?? 'Gujranwala Steel Group of Industry'),
-                'company_motto_urdu'   => trim($_POST['company_motto_urdu'] ?? 'آپ کے اعتماد کا شکریہ - معیاری سریا، درست وزن، باوقار ڈیلنگ'),
+                'company_motto_urdu'   => (!empty($_POST['company_motto_urdu']) && strpos($_POST['company_motto_urdu'], '?') === false) ? trim($_POST['company_motto_urdu']) : 'آپ کے اعتماد کا شکریہ — معیاری سریا، ایماندار وزن، بھروسے کا نام',
                 'company_address'      => trim($_POST['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala'),
                 'company_phone'        => trim($_POST['company_phone'] ?? '0300-9641483 · 0300-7499499'),
                 'company_landline'     => trim($_POST['company_landline'] ?? '055-4213194'),

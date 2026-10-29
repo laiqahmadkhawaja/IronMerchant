@@ -15,7 +15,7 @@ $currentUser = getCurrentUser();
 $role = $currentUser['role'] ?? 'Employee';
 $companySettings = getCompanySettings();
 $companyName = $companySettings['company_name'] ?? 'Zafar Brothers Iron Merchants';
-$companyUrdu = $companySettings['company_urdu'] ?? 'ظفر برادرز آئرن مرچنٹس';
+$companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySettings['company_urdu'], '?') === false) ? $companySettings['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
 ?>
 <!DOCTYPE html>
 <html lang="ur" dir="ltr">

@@ -42,7 +42,7 @@ $charges = $chargesStmt->fetchAll();
 
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
-$compUrdu = $company['company_urdu'] ?? 'ظفر برادرز آئرن مرچنٹس';
+$compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
