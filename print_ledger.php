@@ -318,6 +318,22 @@ if ($type === 'customer') {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
+    @font-face {
+      font-family: 'Agency FB';
+      src: url('assets/fonts/Agency-FB-Regular.ttf') format('truetype'),
+           url('assets/fonts/Agency%20FB%20Regular.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Koodak';
+      src: url('assets/fonts/Koodak.ttf') format('truetype'),
+           url('assets/fonts/Koodak-Regular.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
     body {
       background: #718096;
       color: #0f172a;
@@ -326,8 +342,8 @@ if ($type === 'customer') {
       padding: 16px 8px;
     }
     .ur {
-      font-family: 'Noto Nastaliq Urdu', serif;
-      line-height: 2.1;
+      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif;
+      line-height: 1.8;
       direction: rtl;
     }
     .font-num {
@@ -379,7 +395,8 @@ if ($type === 'customer') {
       letter-spacing: 0.3px;
     }
     .table-ledger th .th-sub {
-      font-family: 'Noto Nastaliq Urdu', serif;
+      font-family: 'Agency FB', 'Koodak', 'Noto Nastaliq Urdu', serif;
+      line-height: 1.8;
       font-size: 10.5px;
       line-height: 1.4;
       opacity: 0.9;
