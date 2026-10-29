@@ -140,12 +140,12 @@ $periodOpeningBalance = $initOpening + $preSales - $preVouchers;
 
 // 2. Fetch Transactions in period
 // Sales
-$stSales = $pdo->prepare("SELECT id, invoice_no AS doc_no, sale_date AS trans_date, 'Sale Bill' AS trans_type, grand_total AS debit, paid_amount AS immediate_credit, (grand_total - paid_amount) AS net_debit, notes AS description FROM sales WHERE customer_id = ? AND sale_date BETWEEN ? AND ? AND status = 'posted'");
+$stSales = $pdo->prepare("SELECT id, invoice_no AS doc_no, sale_date AS trans_date, 'Sale Bill' AS trans_type, grand_total AS debit, paid_amount AS immediate_credit, (grand_total - paid_amount) AS net_debit, notes AS description, journal_id, created_at FROM sales WHERE customer_id = ? AND sale_date BETWEEN ? AND ? AND status = 'posted'");
 $stSales->execute([$custId, $startDate, $endDate]);
 $periodSales = $stSales->fetchAll();
 
 // Vouchers (RV)
-$stV = $pdo->prepare("SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Receipt Voucher' AS trans_type, 0.0 AS debit, v.amount AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name FROM vouchers v LEFT JOIN financial_accounts a ON v.account_id = a.id WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'RV' AND v.status = 'posted'");
+$stV = $pdo->prepare("SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Receipt Voucher' AS trans_type, 0.0 AS debit, v.amount AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name, v.journal_id, v.created_at FROM vouchers v LEFT JOIN financial_accounts a ON v.account_id = a.id WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'RV' AND v.status = 'posted'");
 $stV->execute([$custId, $startDate, $endDate]);
 $periodVouchers = $stV->fetchAll();
 
@@ -159,6 +159,9 @@ foreach ($periodSales as $ps) {
         'desc'        => 'Steel Supply Bill' . (!empty($ps['description']) ? ' (' . $ps['description'] . ')' : '') . ((float)$ps['immediate_credit'] > 0 ? ' [Paid at counter: ' . formatCurrency((float)$ps['immediate_credit']) . ']' : ''),
         'debit'       => (float)$ps['debit'],
         'credit'      => 0.0,
+        'journal_id'  => (int)($ps['journal_id'] ?? 0),
+        'created_at'  => $ps['created_at'] ?? '',
+        'priority'    => 1,
         'link'        => 'print_bill.php?id=' . $ps['id']
     ];
 }
@@ -170,11 +173,37 @@ foreach ($periodVouchers as $pv) {
         'desc'        => 'Received into ' . ($pv['account_name'] ?? 'Cash') . ' (' . $pv['payment_mode'] . ($pv['cheque_no'] ? ' Cheque/Slip: ' . $pv['cheque_no'] : '') . ') ' . ($pv['narration'] ?? ''),
         'debit'       => 0.0,
         'credit'      => (float)$pv['credit'],
+        'journal_id'  => (int)($pv['journal_id'] ?? 0),
+        'created_at'  => $pv['created_at'] ?? '',
+        'priority'    => 2,
         'link'        => 'vouchers.php?search=' . $pv['doc_no']
     ];
 }
 
-usort($ledgerEntries, fn($a, $b) => strcmp($a['date'], $b['date']) ?: strcmp($a['doc_no'], $b['doc_no']));
+usort($ledgerEntries, function($a, $b) {
+    $dateCmp = strcmp($a['date'], $b['date']);
+    if ($dateCmp !== 0) return $dateCmp;
+
+    $timeA = $a['created_at'] ?? '';
+    $timeB = $b['created_at'] ?? '';
+    if ($timeA !== '' && $timeB !== '' && $timeA !== $timeB) {
+        return strcmp($timeA, $timeB);
+    }
+
+    $jA = (int)($a['journal_id'] ?? 0);
+    $jB = (int)($b['journal_id'] ?? 0);
+    if ($jA > 0 && $jB > 0 && $jA !== $jB) {
+        return $jA <=> $jB;
+    }
+
+    $priA = (int)($a['priority'] ?? 1);
+    $priB = (int)($b['priority'] ?? 1);
+    if ($priA !== $priB) {
+        return $priA <=> $priB;
+    }
+
+    return strcmp($a['doc_no'], $b['doc_no']);
+});
 
 // Compute running balances
 $runningBal = $periodOpeningBalance;

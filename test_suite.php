@@ -85,16 +85,14 @@ assertTest(
 // Expected: Receivable +50,000, Sales +50,000, Inventory -35,000, COGS +35,000. Balanced!
 // ------------------------------------------------------------------------
 echo "\n--- Running Test 3: Credit Sale Journal Entry ---\n";
-$stmtCust = $db->query("SELECT id FROM parties WHERE id = 2");
-if (!$stmtCust->fetch()) {
-    $db->exec("INSERT INTO parties (id, type, is_walkin, code, name, phone, current_balance, is_active) VALUES (2, 'customer', 0, 'TEST-CUST-02', 'Test Customer 2', '0300-1111111', 0.0, 1)");
-} else {
-    $db->exec("UPDATE parties SET current_balance = 0.0 WHERE id = 2");
-}
+$db->exec("DELETE FROM parties WHERE code = 'TEST-CUST-02'");
+$db->exec("INSERT INTO parties (type, is_walkin, code, name, phone, current_balance, is_active) VALUES ('customer', 0, 'TEST-CUST-02', 'Test Customer 2', '0300-1111111', 0.0, 1)");
+$testCustId = (int)$db->lastInsertId();
+
 $db->beginTransaction();
 try {
     $jLinesT3 = [
-        ['account_id' => COA_RECEIVABLE, 'party_id' => 2, 'description' => 'Test 3 Credit Sale', 'debit' => 50000.0, 'credit' => 0.0],
+        ['account_id' => COA_RECEIVABLE, 'party_id' => $testCustId, 'description' => 'Test 3 Credit Sale', 'debit' => 50000.0, 'credit' => 0.0],
         ['account_id' => COA_SALES_REVENUE, 'party_id' => null, 'description' => 'Test 3 Sales Revenue', 'debit' => 0.0, 'credit' => 50000.0],
         ['account_id' => COA_COGS, 'party_id' => null, 'description' => 'Test 3 COGS', 'debit' => 35000.0, 'credit' => 0.0],
         ['account_id' => COA_INVENTORY, 'party_id' => null, 'description' => 'Test 3 Inventory relief', 'debit' => 0.0, 'credit' => 35000.0]
@@ -132,7 +130,7 @@ $db->beginTransaction();
 try {
     $jLinesT4 = [
         ['account_id' => COA_CASH_MAIN, 'party_id' => null, 'description' => 'Test 4 Cash Collection', 'debit' => 20000.0, 'credit' => 0.0],
-        ['account_id' => COA_RECEIVABLE, 'party_id' => 2, 'description' => 'Test 4 Partial Payment by Customer', 'debit' => 0.0, 'credit' => 20000.0]
+        ['account_id' => COA_RECEIVABLE, 'party_id' => $testCustId, 'description' => 'Test 4 Partial Payment by Customer', 'debit' => 0.0, 'credit' => 20000.0]
     ];
     $jIdT4 = postJournalEntry($db, [
         'entry_no' => 'TEST-JV-004',
@@ -143,8 +141,8 @@ try {
     ], $jLinesT4);
 
     // Verify customer balance decreased
-    $stmt = $db->prepare("SELECT current_balance FROM parties WHERE id = 2");
-    $stmt->execute();
+    $stmt = $db->prepare("SELECT current_balance FROM parties WHERE id = ?");
+    $stmt->execute([$testCustId]);
     $custBal = (float)$stmt->fetchColumn();
 
     assertTest(

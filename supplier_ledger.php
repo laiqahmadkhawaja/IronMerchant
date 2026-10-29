@@ -140,12 +140,12 @@ $periodOpeningBalance = $initOpening + $prePurchases - $preVouchers;
 
 // 2. Fetch Transactions in period
 // Purchases (Credit to supplier)
-$stPur = $pdo->prepare("SELECT id, purchase_no AS doc_no, purchase_date AS trans_date, 'Purchase Bill' AS trans_type, grand_total AS credit, paid_amount AS immediate_debit, (grand_total - paid_amount) AS net_credit, supplier_inv_no FROM purchases WHERE supplier_id = ? AND purchase_date BETWEEN ? AND ?");
+$stPur = $pdo->prepare("SELECT id, purchase_no AS doc_no, purchase_date AS trans_date, 'Purchase Bill' AS trans_type, grand_total AS credit, paid_amount AS immediate_debit, (grand_total - paid_amount) AS net_credit, supplier_inv_no, journal_id, created_at FROM purchases WHERE supplier_id = ? AND purchase_date BETWEEN ? AND ?");
 $stPur->execute([$suppId, $startDate, $endDate]);
 $periodPurchases = $stPur->fetchAll();
 
 // Vouchers (PV) (Debit to supplier)
-$stV = $pdo->prepare("SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Payment Voucher' AS trans_type, v.amount AS debit, 0.0 AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name FROM vouchers v LEFT JOIN financial_accounts a ON v.account_id = a.id WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'PV' AND v.status = 'posted'");
+$stV = $pdo->prepare("SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Payment Voucher' AS trans_type, v.amount AS debit, 0.0 AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name, v.journal_id, v.created_at FROM vouchers v LEFT JOIN financial_accounts a ON v.account_id = a.id WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'PV' AND v.status = 'posted'");
 $stV->execute([$suppId, $startDate, $endDate]);
 $periodVouchers = $stV->fetchAll();
 

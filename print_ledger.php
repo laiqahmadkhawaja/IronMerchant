@@ -70,7 +70,7 @@ if ($type === 'customer') {
     // 2. Fetch Period Sales (Debit to customer)
     $stSales = $pdo->prepare("
         SELECT id, invoice_no AS doc_no, sale_date AS trans_date, 'Sales Bill' AS trans_type,
-               grand_total AS debit, paid_amount AS immediate_credit, payment_method, notes
+               grand_total AS debit, paid_amount AS immediate_credit, payment_method, notes, journal_id, created_at
         FROM sales
         WHERE customer_id = ? AND sale_date BETWEEN ? AND ? AND status = 'posted'
     ");
@@ -80,7 +80,7 @@ if ($type === 'customer') {
     // 3. Fetch Period Vouchers (RV) (Credit to customer)
     $stV = $pdo->prepare("
         SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Receipt Voucher' AS trans_type,
-               0.0 AS debit, v.amount AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name
+               0.0 AS debit, v.amount AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name, v.journal_id, v.created_at
         FROM vouchers v
         LEFT JOIN financial_accounts a ON v.account_id = a.id
         WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'RV' AND v.status = 'posted'
@@ -90,26 +90,55 @@ if ($type === 'customer') {
 
     foreach ($periodSales as $ps) {
         $ledgerEntries[] = [
-            'date'   => $ps['trans_date'],
-            'doc_no' => $ps['doc_no'],
-            'type'   => 'Sale Bill',
-            'desc'   => 'Steel Bill #' . $ps['doc_no'] . (!empty($ps['notes']) ? ' - ' . $ps['notes'] : '') . ((float)$ps['immediate_credit'] > 0 ? ' [Paid at counter: ' . formatMoney($ps['immediate_credit']) . ']' : ''),
-            'debit'  => (float)$ps['debit'],
-            'credit' => 0.0
+            'date'       => $ps['trans_date'],
+            'doc_no'     => $ps['doc_no'],
+            'type'       => 'Sale Bill',
+            'desc'       => 'Steel Bill #' . $ps['doc_no'] . (!empty($ps['notes']) ? ' - ' . $ps['notes'] : '') . ((float)$ps['immediate_credit'] > 0 ? ' [Paid at counter: ' . formatMoney($ps['immediate_credit']) . ']' : ''),
+            'debit'      => (float)$ps['debit'],
+            'credit'     => 0.0,
+            'journal_id' => (int)($ps['journal_id'] ?? 0),
+            'created_at' => $ps['created_at'] ?? '',
+            'priority'   => 1
         ];
     }
     foreach ($periodVouchers as $pv) {
         $ledgerEntries[] = [
-            'date'   => $pv['trans_date'],
-            'doc_no' => $pv['doc_no'],
-            'type'   => 'Payment Receipt',
-            'desc'   => 'Received via ' . ($pv['account_name'] ?? 'Cash/Bank') . ' (' . $pv['payment_mode'] . ($pv['cheque_no'] ? ' Ref: ' . $pv['cheque_no'] : '') . ') ' . ($pv['narration'] ?? ''),
-            'debit'  => 0.0,
-            'credit' => (float)$pv['credit']
+            'date'       => $pv['trans_date'],
+            'doc_no'     => $pv['doc_no'],
+            'type'       => 'Payment Receipt',
+            'desc'       => 'Received via ' . ($pv['account_name'] ?? 'Cash/Bank') . ' (' . $pv['payment_mode'] . ($pv['cheque_no'] ? ' Ref: ' . $pv['cheque_no'] : '') . ') ' . ($pv['narration'] ?? ''),
+            'debit'      => 0.0,
+            'credit'     => (float)$pv['credit'],
+            'journal_id' => (int)($pv['journal_id'] ?? 0),
+            'created_at' => $pv['created_at'] ?? '',
+            'priority'   => 2
         ];
     }
 
-    usort($ledgerEntries, fn($a, $b) => strcmp($a['date'], $b['date']) ?: strcmp($a['doc_no'], $b['doc_no']));
+    usort($ledgerEntries, function($a, $b) {
+        $dateCmp = strcmp($a['date'], $b['date']);
+        if ($dateCmp !== 0) return $dateCmp;
+
+        $timeA = $a['created_at'] ?? '';
+        $timeB = $b['created_at'] ?? '';
+        if ($timeA !== '' && $timeB !== '' && $timeA !== $timeB) {
+            return strcmp($timeA, $timeB);
+        }
+
+        $jA = (int)($a['journal_id'] ?? 0);
+        $jB = (int)($b['journal_id'] ?? 0);
+        if ($jA > 0 && $jB > 0 && $jA !== $jB) {
+            return $jA <=> $jB;
+        }
+
+        $priA = (int)($a['priority'] ?? 1);
+        $priB = (int)($b['priority'] ?? 1);
+        if ($priA !== $priB) {
+            return $priA <=> $priB;
+        }
+
+        return strcmp($a['doc_no'], $b['doc_no']);
+    });
 
     $runningBal = $periodOpeningBalance;
     foreach ($ledgerEntries as &$row) {
@@ -148,7 +177,7 @@ if ($type === 'customer') {
     // 2. Fetch Period Purchases (Credit to supplier)
     $stPur = $pdo->prepare("
         SELECT id, purchase_no AS doc_no, purchase_date AS trans_date, 'Purchase Bill' AS trans_type,
-               grand_total AS credit, paid_amount AS immediate_debit, supplier_inv_no
+               grand_total AS credit, paid_amount AS immediate_debit, supplier_inv_no, journal_id, created_at
         FROM purchases
         WHERE supplier_id = ? AND purchase_date BETWEEN ? AND ?
     ");
@@ -158,7 +187,7 @@ if ($type === 'customer') {
     // 3. Fetch Period Vouchers (PV) (Debit to supplier)
     $stV = $pdo->prepare("
         SELECT v.id, v.voucher_no AS doc_no, v.voucher_date AS trans_date, 'Payment Voucher' AS trans_type,
-               v.amount AS debit, 0.0 AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name
+               v.amount AS debit, 0.0 AS credit, v.payment_mode, v.cheque_no, v.narration, a.account_name, v.journal_id, v.created_at
         FROM vouchers v
         LEFT JOIN financial_accounts a ON v.account_id = a.id
         WHERE v.party_id = ? AND v.voucher_date BETWEEN ? AND ? AND v.voucher_type = 'PV' AND v.status = 'posted'
@@ -168,26 +197,55 @@ if ($type === 'customer') {
 
     foreach ($periodPurchases as $pp) {
         $ledgerEntries[] = [
-            'date'   => $pp['trans_date'],
-            'doc_no' => $pp['doc_no'],
-            'type'   => 'Purchase Bill',
-            'desc'   => 'Steel Purchase Invoice' . (!empty($pp['supplier_inv_no']) ? ' (Mill Inv: ' . $pp['supplier_inv_no'] . ')' : '') . ((float)$pp['immediate_debit'] > 0 ? ' [Paid at loading: ' . formatMoney($pp['immediate_debit']) . ']' : ''),
-            'debit'  => 0.0,
-            'credit' => (float)$pp['credit']
+            'date'       => $pp['trans_date'],
+            'doc_no'     => $pp['doc_no'],
+            'type'       => 'Purchase Bill',
+            'desc'       => 'Steel Purchase Invoice' . (!empty($pp['supplier_inv_no']) ? ' (Mill Inv: ' . $pp['supplier_inv_no'] . ')' : '') . ((float)$pp['immediate_debit'] > 0 ? ' [Paid at loading: ' . formatMoney($pp['immediate_debit']) . ']' : ''),
+            'debit'      => 0.0,
+            'credit'     => (float)$pp['credit'],
+            'journal_id' => (int)($pp['journal_id'] ?? 0),
+            'created_at' => $pp['created_at'] ?? '',
+            'priority'   => 1
         ];
     }
     foreach ($periodVouchers as $pv) {
         $ledgerEntries[] = [
-            'date'   => $pv['trans_date'],
-            'doc_no' => $pv['doc_no'],
-            'type'   => 'Disbursement',
-            'desc'   => 'Paid via ' . ($pv['account_name'] ?? 'Bank') . ' (' . $pv['payment_mode'] . ($pv['cheque_no'] ? ' Cheque: ' . $pv['cheque_no'] : '') . ') ' . ($pv['narration'] ?? ''),
-            'debit'  => (float)$pv['debit'],
-            'credit' => 0.0
+            'date'       => $pv['trans_date'],
+            'doc_no'     => $pv['doc_no'],
+            'type'       => 'Disbursement',
+            'desc'       => 'Paid via ' . ($pv['account_name'] ?? 'Bank') . ' (' . $pv['payment_mode'] . ($pv['cheque_no'] ? ' Cheque: ' . $pv['cheque_no'] : '') . ') ' . ($pv['narration'] ?? ''),
+            'debit'      => (float)$pv['debit'],
+            'credit'     => 0.0,
+            'journal_id' => (int)($pv['journal_id'] ?? 0),
+            'created_at' => $pv['created_at'] ?? '',
+            'priority'   => 2
         ];
     }
 
-    usort($ledgerEntries, fn($a, $b) => strcmp($a['date'], $b['date']) ?: strcmp($a['doc_no'], $b['doc_no']));
+    usort($ledgerEntries, function($a, $b) {
+        $dateCmp = strcmp($a['date'], $b['date']);
+        if ($dateCmp !== 0) return $dateCmp;
+
+        $timeA = $a['created_at'] ?? '';
+        $timeB = $b['created_at'] ?? '';
+        if ($timeA !== '' && $timeB !== '' && $timeA !== $timeB) {
+            return strcmp($timeA, $timeB);
+        }
+
+        $jA = (int)($a['journal_id'] ?? 0);
+        $jB = (int)($b['journal_id'] ?? 0);
+        if ($jA > 0 && $jB > 0 && $jA !== $jB) {
+            return $jA <=> $jB;
+        }
+
+        $priA = (int)($a['priority'] ?? 1);
+        $priB = (int)($b['priority'] ?? 1);
+        if ($priA !== $priB) {
+            return $priA <=> $priB;
+        }
+
+        return strcmp($a['doc_no'], $b['doc_no']);
+    });
 
     $runningBal = $periodOpeningBalance;
     foreach ($ledgerEntries as &$row) {
