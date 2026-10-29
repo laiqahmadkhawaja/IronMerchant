@@ -393,6 +393,48 @@ try {
     assertTest("Test 13: Shift Opening & Closing Persistence", false, $e->getMessage());
 }
 
+// ------------------------------------------------------------------------
+// Test 14: Category & Master Type Creation (Expense Categories & Product Categories)
+// ------------------------------------------------------------------------
+echo "\n--- Running Test 14: Expense & Product Category Master Management ---\n";
+try {
+    $db->exec("DELETE FROM expense_categories WHERE name = 'TEST-EXP-CAT'");
+    $db->exec("DELETE FROM item_categories WHERE name = 'TEST-ITEM-CAT'");
+
+    // 1. Create Expense Category
+    $insExp = $db->prepare("INSERT INTO expense_categories (name, coa_id, is_active) VALUES ('TEST-EXP-CAT', 39, 1)");
+    $insExp->execute();
+    $expCatId = (int)$db->lastInsertId();
+
+    // 2. Create Item Category
+    $insItem = $db->prepare("INSERT INTO item_categories (name, description) VALUES ('TEST-ITEM-CAT', 'Test Description')");
+    $insItem->execute();
+    $itemCatId = (int)$db->lastInsertId();
+
+    $stmtE = $db->prepare("SELECT id, name, coa_id FROM expense_categories WHERE id = ?");
+    $stmtE->execute([$expCatId]);
+    $rowE = $stmtE->fetch();
+
+    $stmtI = $db->prepare("SELECT id, name, description FROM item_categories WHERE id = ?");
+    $stmtI->execute([$itemCatId]);
+    $rowI = $stmtI->fetch();
+
+    // Cleanup
+    $db->exec("DELETE FROM expense_categories WHERE id = $expCatId");
+    $db->exec("DELETE FROM item_categories WHERE id = $itemCatId");
+
+    $passed14 = ($rowE && $rowE['name'] === 'TEST-EXP-CAT' && (int)$rowE['coa_id'] === 39) &&
+                ($rowI && $rowI['name'] === 'TEST-ITEM-CAT');
+
+    assertTest(
+        "Test 14: Master Category Creation & Integrity",
+        $passed14,
+        "Expense category (COA: 39) and Product category created and verified successfully"
+    );
+} catch (Exception $e) {
+    assertTest("Test 14: Master Category Creation & Integrity", false, $e->getMessage());
+}
+
 echo "\n========================================================\n";
 echo " TEST RESULTS: {$passCount} PASSED, {$failCount} FAILED\n";
 echo "========================================================\n";

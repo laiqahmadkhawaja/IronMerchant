@@ -28,6 +28,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = trim($_POST['action'] ?? '');
 
+        // Handle Add Item / Product Category
+        if ($action === 'save_item_category') {
+            $catName = trim($_POST['category_name'] ?? '');
+            $catDesc = trim($_POST['description'] ?? '');
+
+            if ($catName === '') {
+                $errors[] = 'Product category name is required.';
+            } else {
+                $chk = $pdo->prepare("SELECT id FROM item_categories WHERE LOWER(name) = LOWER(?)");
+                $chk->execute([$catName]);
+                if ($chk->fetch()) {
+                    $errors[] = "A product category named '$catName' already exists.";
+                } else {
+                    $ins = $pdo->prepare("INSERT INTO item_categories (name, description) VALUES (?, ?)");
+                    $ins->execute([$catName, $catDesc]);
+                    $newCatId = (int)$pdo->lastInsertId();
+                    logAudit('create', 'item_categories', $newCatId, "Created product category '$catName'");
+                    setFlash('success', "Product category '$catName' added successfully.");
+                    header('Location: inventory.php');
+                    exit;
+                }
+            }
+        }
+
         if ($action === 'save_item') {
             $itemId    = (int)($_POST['item_id'] ?? 0);
             $itemCode  = trim($_POST['item_code'] ?? '');
@@ -153,7 +177,10 @@ require_once __DIR__ . '/includes/header.php';
         <h4 class="mb-1" style="font-weight: 700; color: var(--nv);">Stock & Valuation (اسٹاک اور انوینٹری)</h4>
         <span class="text-muted" style="font-size: 13px;">Real-time weighted-average landed cost valuation and steel group inventory</span>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addItemCategoryModal">
+          <i class="fa-solid fa-layer-group me-1"></i> Add Category (نئی کیٹگری)
+        </button>
         <a href="stock_adjust.php" class="btn btn-outline-secondary">
           <i class="fa-solid fa-sliders me-1"></i> Stock Adjustment (اسٹاک درستگی)
         </a>
@@ -366,7 +393,12 @@ require_once __DIR__ . '/includes/header.php';
             </div>
 
             <div class="col-12 col-md-4">
-              <label class="form-label">Category (کیٹیگری)</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label mb-0">Category (کیٹیگری)</label>
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" style="font-size: 12px;" data-bs-toggle="modal" data-bs-target="#addItemCategoryModal">
+                  <i class="fa-solid fa-plus-circle me-1"></i>+ New Category
+                </button>
+              </div>
               <select name="category_id" class="form-select">
                 <option value="">Select Category...</option>
                 <?php foreach ($categories as $cat): ?>
@@ -380,11 +412,13 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-12 col-md-2">
               <label class="form-label">Unit of Measure</label>
               <select name="unit" class="form-select">
-                <option value="kg" <?= (($editItem['unit'] ?? 'kg') === 'kg') ? 'selected' : '' ?>>Kilogram (kg)</option>
-                <option value="ton" <?= (($editItem['unit'] ?? '') === 'ton') ? 'selected' : '' ?>>Metric Ton (ton)</option>
-                <option value="pcs" <?= (($editItem['unit'] ?? '') === 'pcs') ? 'selected' : '' ?>>Pieces (pcs)</option>
-                <option value="bundle" <?= (($editItem['unit'] ?? '') === 'bundle') ? 'selected' : '' ?>>Bundle</option>
-                <option value="feet" <?= (($editItem['unit'] ?? '') === 'feet') ? 'selected' : '' ?>>Feet</option>
+                <option value="kg" <?= (($editItem['unit'] ?? 'kg') === 'kg') ? 'selected' : '' ?>>Kilogram (kg - کلوگرام)</option>
+                <option value="ton" <?= (($editItem['unit'] ?? '') === 'ton') ? 'selected' : '' ?>>Metric Ton (ٹن)</option>
+                <option value="pcs" <?= (($editItem['unit'] ?? '') === 'pcs') ? 'selected' : '' ?>>Pieces (pcs - عدد / نگ)</option>
+                <option value="bundle" <?= (($editItem['unit'] ?? '') === 'bundle') ? 'selected' : '' ?>>Bundle (بنڈل)</option>
+                <option value="feet" <?= (($editItem['unit'] ?? '') === 'feet') ? 'selected' : '' ?>>Feet (فٹ)</option>
+                <option value="meter" <?= (($editItem['unit'] ?? '') === 'meter') ? 'selected' : '' ?>>Meter (میٹر)</option>
+                <option value="bag" <?= (($editItem['unit'] ?? '') === 'bag') ? 'selected' : '' ?>>Bag / Bori (بوری)</option>
               </select>
             </div>
 
@@ -423,5 +457,39 @@ require_once __DIR__ . '/includes/header.php';
         </form>
       </div>
     </div>
+
+<!-- Modal: Add Item Category (پروڈکٹ کی نئی قسم شامل کریں) -->
+<div class="modal fade" id="addItemCategoryModal" tabindex="-1" aria-labelledby="addItemCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: 1px solid var(--bd);">
+      <div class="modal-header bg-white py-3">
+        <h6 class="modal-title fw-bold" id="addItemCategoryModalLabel" style="color: var(--nv);">
+          <i class="fa-solid fa-layer-group me-2 text-primary"></i> Add Product Category (اسٹاک کی نئی قسم)
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="inventory.php">
+        <?= getCSRFInput() ?>
+        <input type="hidden" name="action" value="save_item_category">
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label">Category Name (کیٹگری نام) <span class="text-danger">*</span></label>
+            <input type="text" name="category_name" class="form-control" required placeholder="e.g. MS Square Pipes / پائپ اور چکور نلیاں">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description (تفصیل) <span class="text-muted">(Optional)</span></label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Brief description of products in this category"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer bg-light py-2 px-4">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-zb-primary btn-sm px-3">
+            <i class="fa-solid fa-check me-1"></i> Save Category (محفوظ کریں)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

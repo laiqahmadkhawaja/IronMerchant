@@ -20,6 +20,37 @@ $pdo = getPDO();
 $pageTitle = 'Operating Expenses (کاروباری اخراجات)';
 $errors = [];
 
+// Handle Add Expense Category (نئی کیٹگری شامل کریں)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_expense_category') {
+    if (!validateCSRF($_POST['csrf_token'] ?? '')) {
+        $errors[] = 'Invalid security token.';
+    } else {
+        $catName = trim($_POST['category_name'] ?? '');
+        $coaId   = (int)($_POST['coa_id'] ?? 39);
+
+        if ($catName === '') {
+            $errors[] = 'Category name is required.';
+        } else {
+            $chk = $pdo->prepare("SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)");
+            $chk->execute([$catName]);
+            if ($chk->fetch()) {
+                $errors[] = "An expense category named '$catName' already exists.";
+            } else {
+                if ($coaId <= 0) {
+                    $coaId = 39; // Default 5200 General & Miscellaneous Expenses
+                }
+                $ins = $pdo->prepare("INSERT INTO expense_categories (name, coa_id, is_active) VALUES (?, ?, 1)");
+                $ins->execute([$catName, $coaId]);
+                $newCatId = (int)$pdo->lastInsertId();
+                logAudit('create', 'expense_categories', $newCatId, "Created expense category '$catName'");
+                setFlash('success', "Expense category '$catName' added successfully.");
+                header("Location: expenses.php");
+                exit;
+            }
+        }
+    }
+}
+
 // Handle New Expense Entry
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_expense') {
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
@@ -119,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 // Fetch categories & financial accounts
 $categories = $pdo->query("SELECT * FROM expense_categories WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 $finAccounts = $pdo->query("SELECT id, account_name, account_type, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
+$expenseCoaAccounts = $pdo->query("SELECT id, code, name FROM chart_of_accounts WHERE type = 'Expense' AND is_active = 1 ORDER BY code ASC")->fetchAll();
 
 // Filters
 $startDate = trim($_GET['start_date'] ?? date('Y-m-01'));
@@ -176,7 +208,10 @@ require_once __DIR__ . '/includes/header.php';
         <h4 class="mb-1" style="font-weight: 700; color: var(--nv);">Operating Expenses & Vouchers (کاروباری اخراجات)</h4>
         <span class="text-muted" style="font-size: 13px;">Yard rent, electricity, loading labour, vehicle fuel, and daily office expenditure</span>
       </div>
-      <div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addExpenseCategoryModal">
+          <i class="fa-solid fa-tags me-1"></i> Add Category (نئی کیٹگری)
+        </button>
         <a href="#expenseFormCard" class="btn btn-zb-primary" onclick="document.getElementById('expenseFormCard').scrollIntoView({behavior:'smooth'});">
           <i class="fa-solid fa-plus me-1"></i> Record New Expense (نیا خرچہ درج کریں)
         </a>
@@ -346,7 +381,12 @@ require_once __DIR__ . '/includes/header.php';
             </div>
 
             <div class="col-12 col-md-5">
-              <label class="form-label">Expense Category (اخراجات کی مد) <span class="text-danger">*</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label mb-0">Expense Category (اخراجات کی مد) <span class="text-danger">*</span></label>
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" style="font-size: 12px;" data-bs-toggle="modal" data-bs-target="#addExpenseCategoryModal">
+                  <i class="fa-solid fa-plus-circle me-1"></i>+ New Category
+                </button>
+              </div>
               <select name="category_id" class="form-select" required>
                 <option value="">-- Choose Category --</option>
                 <?php foreach ($categories as $cat): ?>
@@ -408,5 +448,46 @@ require_once __DIR__ . '/includes/header.php';
         </form>
       </div>
     </div>
+
+<!-- Modal: Add Expense Category (اخراجات کی نئی قسم شامل کریں) -->
+<div class="modal fade" id="addExpenseCategoryModal" tabindex="-1" aria-labelledby="addExpenseCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: 1px solid var(--bd);">
+      <div class="modal-header bg-white py-3">
+        <h6 class="modal-title fw-bold" id="addExpenseCategoryModalLabel" style="color: var(--nv);">
+          <i class="fa-solid fa-tags me-2 text-primary"></i> Add Expense Category (اخراجات کی نئی قسم)
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="expenses.php">
+        <?= getCSRFInput() ?>
+        <input type="hidden" name="action" value="save_expense_category">
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label">Category Name (مد کا نام) <span class="text-danger">*</span></label>
+            <input type="text" name="category_name" class="form-control" required placeholder="e.g. Generator Diesel / جنریٹر ڈیزل و فیول">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Accounting Ledger Account (کھاتہ) <span class="text-muted">(Optional)</span></label>
+            <select name="coa_id" class="form-select">
+              <?php foreach ($expenseCoaAccounts as $acc): ?>
+                <option value="<?= $acc['id'] ?>" <?= ((int)$acc['id'] === 39) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($acc['code']) ?> - <?= htmlspecialchars($acc['name']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text" style="font-size: 11.5px;">Auto-defaults to 5200 General & Miscellaneous Expenses if left unchanged.</div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light py-2 px-4">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-zb-primary btn-sm px-3">
+            <i class="fa-solid fa-check me-1"></i> Save Category (محفوظ کریں)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

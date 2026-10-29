@@ -50,6 +50,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 $errors[] = $e->getMessage();
             }
+        } elseif ($action === 'save_expense_category') {
+            $catName = trim($_POST['category_name'] ?? '');
+            $coaId   = (int)($_POST['coa_id'] ?? 39);
+
+            if ($catName === '') {
+                $errors[] = 'Expense category name is required.';
+            } else {
+                try {
+                    $chk = $pdo->prepare("SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)");
+                    $chk->execute([$catName]);
+                    if ($chk->fetch()) {
+                        throw new Exception("An expense category named '$catName' already exists.");
+                    }
+                    if ($coaId <= 0) {
+                        $coaId = 39;
+                    }
+                    $ins = $pdo->prepare("INSERT INTO expense_categories (name, coa_id, is_active) VALUES (?, ?, 1)");
+                    $ins->execute([$catName, $coaId]);
+                    $newId = (int)$pdo->lastInsertId();
+                    logAudit('create', 'expense_categories', $newId, "Created expense category '$catName'");
+                    setFlash('success', "Expense category '$catName' created successfully.");
+                    header('Location: settings.php#categoriesSection');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = $e->getMessage();
+                }
+            }
+        } elseif ($action === 'toggle_expense_category') {
+            $catId = (int)($_POST['category_id'] ?? 0);
+            try {
+                $st = $pdo->prepare("UPDATE expense_categories SET is_active = 1 - is_active WHERE id = ?");
+                $st->execute([$catId]);
+                logAudit('update', 'expense_categories', $catId, "Toggled expense category active state");
+                setFlash('success', "Expense category status updated.");
+                header('Location: settings.php#categoriesSection');
+                exit;
+            } catch (Exception $e) {
+                $errors[] = $e->getMessage();
+            }
+        } elseif ($action === 'save_item_category') {
+            $catName = trim($_POST['category_name'] ?? '');
+            $catDesc = trim($_POST['description'] ?? '');
+
+            if ($catName === '') {
+                $errors[] = 'Product category name is required.';
+            } else {
+                try {
+                    $chk = $pdo->prepare("SELECT id FROM item_categories WHERE LOWER(name) = LOWER(?)");
+                    $chk->execute([$catName]);
+                    if ($chk->fetch()) {
+                        throw new Exception("A product category named '$catName' already exists.");
+                    }
+                    $ins = $pdo->prepare("INSERT INTO item_categories (name, description) VALUES (?, ?)");
+                    $ins->execute([$catName, $catDesc]);
+                    $newId = (int)$pdo->lastInsertId();
+                    logAudit('create', 'item_categories', $newId, "Created product category '$catName'");
+                    setFlash('success', "Product category '$catName' created successfully.");
+                    header('Location: settings.php#categoriesSection');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = $e->getMessage();
+                }
+            }
         } elseif ($action === 'update_user_pin') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $newPin = trim($_POST['new_pin'] ?? '');
@@ -81,6 +144,9 @@ while ($row = $stSets->fetch(PDO::FETCH_ASSOC)) {
 
 // Fetch users
 $users = $pdo->query("SELECT id, username, name, role, pin, permissions, is_active FROM users ORDER BY id ASC")->fetchAll();
+$expenseCategoriesList = $pdo->query("SELECT ec.*, coa.code AS coa_code, coa.name AS coa_name FROM expense_categories ec LEFT JOIN chart_of_accounts coa ON ec.coa_id = coa.id ORDER BY ec.name ASC")->fetchAll();
+$itemCategoriesList = $pdo->query("SELECT ic.*, (SELECT COUNT(*) FROM items i WHERE i.category_id = ic.id) AS item_count FROM item_categories ic ORDER BY ic.name ASC")->fetchAll();
+$expenseCoas = $pdo->query("SELECT id, code, name FROM chart_of_accounts WHERE type = 'Expense' AND is_active = 1 ORDER BY code ASC")->fetchAll();
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -244,6 +310,172 @@ require_once __DIR__ . '/includes/header.php';
             <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Master Categories & Classifications Section -->
+    <div class="card mb-4" id="categoriesSection" style="border: 1px solid var(--bd); border-radius: 10px;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="mb-0" style="font-weight: 700; color: var(--nv);">
+          <i class="fa-solid fa-shapes me-2 text-primary"></i> Master Categories & Expense Types (اقسام اخراجات و آئٹمز)
+        </h6>
+        <span class="text-muted" style="font-size: 13px;">Manage operational expense types and steel inventory product categories</span>
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-4">
+          <!-- Column 1: Expense Categories -->
+          <div class="col-12 col-lg-6">
+            <div class="p-3 border rounded-3 bg-light-subtle h-100">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0 fw-bold" style="color: var(--nv);">
+                  <i class="fa-solid fa-tags me-2 text-primary"></i> Expense Categories (اخراجات کی اقسام)
+                </h6>
+                <button type="button" class="btn btn-sm btn-zb-primary" data-bs-toggle="collapse" data-bs-target="#newExpenseCatForm">
+                  <i class="fa-solid fa-plus me-1"></i> Add Category
+                </button>
+              </div>
+
+              <!-- Quick Add Expense Category Form Collapse -->
+              <div class="collapse mb-3" id="newExpenseCatForm">
+                <div class="card card-body bg-white border">
+                  <form method="POST" action="settings.php">
+                    <?= getCSRFInput() ?>
+                    <input type="hidden" name="action" value="save_expense_category">
+                    <div class="mb-2">
+                      <label class="form-label" style="font-size: 12px;">Category Name (نام)</label>
+                      <input type="text" name="category_name" class="form-control form-control-sm" required placeholder="e.g. Generator Fuel & Diesel / جنریٹر ڈیزل">
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label" style="font-size: 12px;">Ledger Account (کھاتہ)</label>
+                      <select name="coa_id" class="form-select form-select-sm">
+                        <?php foreach ($expenseCoas as $acc): ?>
+                          <option value="<?= $acc['id'] ?>" <?= ((int)$acc['id'] === 39) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($acc['code']) ?> - <?= htmlspecialchars($acc['name']) ?>
+                          </option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="text-end">
+                      <button type="button" class="btn btn-sm btn-secondary me-1" data-bs-toggle="collapse" data-bs-target="#newExpenseCatForm">Cancel</button>
+                      <button type="submit" class="btn btn-sm btn-zb-primary">Save Expense Category</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="table-responsive bg-white rounded border" style="max-height: 380px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 13px;">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="padding: 10px 12px;">Category Name</th>
+                      <th style="padding: 10px 12px;">Linked COA</th>
+                      <th style="padding: 10px 12px;">Status</th>
+                      <th style="padding: 10px 12px; text-align: center;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (empty($expenseCategoriesList)): ?>
+                      <tr><td colspan="4" class="text-center text-muted py-3">No expense categories found.</td></tr>
+                    <?php else: ?>
+                      <?php foreach ($expenseCategoriesList as $ec): ?>
+                        <tr>
+                          <td style="padding: 10px 12px; font-weight: 600; color: var(--nv);"><?= htmlspecialchars($ec['name']) ?></td>
+                          <td style="padding: 10px 12px; font-size: 12px; color: #475569;">
+                            <?= htmlspecialchars($ec['coa_code'] ?? '') ?> - <?= htmlspecialchars($ec['coa_name'] ?? 'General Expense') ?>
+                          </td>
+                          <td style="padding: 10px 12px;">
+                            <?php if ($ec['is_active']): ?>
+                              <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                            <?php else: ?>
+                              <span class="badge bg-secondary-subtle text-secondary border">Disabled</span>
+                            <?php endif; ?>
+                          </td>
+                          <td style="padding: 10px 12px; text-align: center;">
+                            <form method="POST" action="settings.php" class="d-inline">
+                              <?= getCSRFInput() ?>
+                              <input type="hidden" name="action" value="toggle_expense_category">
+                              <input type="hidden" name="category_id" value="<?= $ec['id'] ?>">
+                              <button type="submit" class="btn btn-sm <?= $ec['is_active'] ? 'btn-outline-danger' : 'btn-outline-success' ?> py-0 px-2" style="font-size: 11px;">
+                                <?= $ec['is_active'] ? 'Disable' : 'Enable' ?>
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Product / Item Categories -->
+          <div class="col-12 col-lg-6">
+            <div class="p-3 border rounded-3 bg-light-subtle h-100">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0 fw-bold" style="color: var(--nv);">
+                  <i class="fa-solid fa-layer-group me-2 text-primary"></i> Product Categories (اسٹاک و پروڈکٹس)
+                </h6>
+                <button type="button" class="btn btn-sm btn-zb-primary" data-bs-toggle="collapse" data-bs-target="#newItemCatForm">
+                  <i class="fa-solid fa-plus me-1"></i> Add Category
+                </button>
+              </div>
+
+              <!-- Quick Add Item Category Form Collapse -->
+              <div class="collapse mb-3" id="newItemCatForm">
+                <div class="card card-body bg-white border">
+                  <form method="POST" action="settings.php">
+                    <?= getCSRFInput() ?>
+                    <input type="hidden" name="action" value="save_item_category">
+                    <div class="mb-2">
+                      <label class="form-label" style="font-size: 12px;">Category Name (نام)</label>
+                      <input type="text" name="category_name" class="form-control form-control-sm" required placeholder="e.g. MS Pipes & Square Tubes / پائپ">
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label" style="font-size: 12px;">Description (تفصیل) <span class="text-muted">(Optional)</span></label>
+                      <input type="text" name="description" class="form-control form-control-sm" placeholder="Steel sections description">
+                    </div>
+                    <div class="text-end">
+                      <button type="button" class="btn btn-sm btn-secondary me-1" data-bs-toggle="collapse" data-bs-target="#newItemCatForm">Cancel</button>
+                      <button type="submit" class="btn btn-sm btn-zb-primary">Save Product Category</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="table-responsive bg-white rounded border" style="max-height: 380px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 13px;">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="padding: 10px 12px;">Category Name</th>
+                      <th style="padding: 10px 12px;">Description</th>
+                      <th style="padding: 10px 12px; text-align: center;">Products Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (empty($itemCategoriesList)): ?>
+                      <tr><td colspan="3" class="text-center text-muted py-3">No product categories found.</td></tr>
+                    <?php else: ?>
+                      <?php foreach ($itemCategoriesList as $ic): ?>
+                        <tr>
+                          <td style="padding: 10px 12px; font-weight: 600; color: var(--nv);"><?= htmlspecialchars($ic['name']) ?></td>
+                          <td style="padding: 10px 12px; font-size: 12px; color: #475569;">
+                            <?= htmlspecialchars($ic['description'] ?? '—') ?>
+                          </td>
+                          <td style="padding: 10px 12px; text-align: center;">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2">
+                              <?= (int)$ic['item_count'] ?> Products
+                            </span>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
