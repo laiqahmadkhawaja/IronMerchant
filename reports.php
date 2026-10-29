@@ -172,7 +172,7 @@ if ($reportType === 'product_sales') {
         FROM sale_items si
         JOIN items i ON si.item_id = i.id
         JOIN sales s ON si.sale_id = s.id
-        WHERE s.sale_date BETWEEN ? AND ? AND s.status = 'completed'
+        WHERE s.sale_date BETWEEN ? AND ? AND s.status = 'posted'
         GROUP BY i.id, i.item_code, i.name, i.unit
         ORDER BY total_revenue DESC
     ");

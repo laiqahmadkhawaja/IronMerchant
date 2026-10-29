@@ -57,7 +57,7 @@ if ($type === 'customer') {
 
     // 1. Opening Balance before startDate
     $initOpening = (float)$entity['opening_balance'];
-    $stSalesPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total - paid_amount), 0) FROM sales WHERE customer_id = ? AND sale_date < ? AND status = 'posted'");
+    $stSalesPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total), 0) FROM sales WHERE customer_id = ? AND sale_date < ? AND status = 'posted'");
     $stSalesPre->execute([$id, $startDate]);
     $preSales = (float)$stSalesPre->fetchColumn();
 
@@ -95,7 +95,7 @@ if ($type === 'customer') {
             'type'   => 'Sale Bill',
             'desc'   => 'Steel Bill #' . $ps['doc_no'] . (!empty($ps['notes']) ? ' - ' . $ps['notes'] : '') . ((float)$ps['immediate_credit'] > 0 ? ' [Paid at counter: ' . formatMoney($ps['immediate_credit']) . ']' : ''),
             'debit'  => (float)$ps['debit'],
-            'credit' => (float)$ps['immediate_credit']
+            'credit' => 0.0
         ];
     }
     foreach ($periodVouchers as $pv) {
@@ -135,7 +135,7 @@ if ($type === 'customer') {
 
     // 1. Opening balance before startDate
     $initOpening = (float)$entity['opening_balance'];
-    $stPurPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total - paid_amount), 0) FROM purchases WHERE supplier_id = ? AND purchase_date < ?");
+    $stPurPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total), 0) FROM purchases WHERE supplier_id = ? AND purchase_date < ?");
     $stPurPre->execute([$id, $startDate]);
     $prePurchases = (float)$stPurPre->fetchColumn();
 
@@ -172,7 +172,7 @@ if ($type === 'customer') {
             'doc_no' => $pp['doc_no'],
             'type'   => 'Purchase Bill',
             'desc'   => 'Steel Purchase Invoice' . (!empty($pp['supplier_inv_no']) ? ' (Mill Inv: ' . $pp['supplier_inv_no'] . ')' : '') . ((float)$pp['immediate_debit'] > 0 ? ' [Paid at loading: ' . formatMoney($pp['immediate_debit']) . ']' : ''),
-            'debit'  => (float)$pp['immediate_debit'],
+            'debit'  => 0.0,
             'credit' => (float)$pp['credit']
         ];
     }

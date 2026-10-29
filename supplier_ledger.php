@@ -127,7 +127,7 @@ $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
 $initOpening = (float)$supplier['opening_balance'];
 
 // Purchases before startDate
-$stPurPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total - paid_amount), 0) FROM purchases WHERE supplier_id = ? AND purchase_date < ?");
+$stPurPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total), 0) FROM purchases WHERE supplier_id = ? AND purchase_date < ?");
 $stPurPre->execute([$suppId, $startDate]);
 $prePurchases = (float)$stPurPre->fetchColumn();
 
@@ -157,7 +157,7 @@ foreach ($periodPurchases as $pp) {
         'doc_no'      => $pp['doc_no'],
         'type'        => 'Steel Purchase Bill',
         'desc'        => 'Purchase Invoice' . (!empty($pp['supplier_inv_no']) ? ' (Mill Inv: ' . $pp['supplier_inv_no'] . ')' : '') . ((float)$pp['immediate_debit'] > 0 ? ' [Paid at loading: ' . formatCurrency((float)$pp['immediate_debit']) . ']' : ''),
-        'debit'       => (float)$pp['immediate_debit'],
+        'debit'       => 0.0,
         'credit'      => (float)$pp['credit'],
         'link'        => 'purchases.php?search=' . $pp['doc_no']
     ];

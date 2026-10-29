@@ -127,7 +127,7 @@ $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
 $initOpening = (float)$customer['opening_balance'];
 
 // Sales before startDate
-$stSalesPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total - paid_amount), 0) FROM sales WHERE customer_id = ? AND sale_date < ? AND status = 'completed'");
+$stSalesPre = $pdo->prepare("SELECT COALESCE(SUM(grand_total), 0) FROM sales WHERE customer_id = ? AND sale_date < ? AND status = 'posted'");
 $stSalesPre->execute([$custId, $startDate]);
 $preSales = (float)$stSalesPre->fetchColumn();
 
@@ -140,7 +140,7 @@ $periodOpeningBalance = $initOpening + $preSales - $preVouchers;
 
 // 2. Fetch Transactions in period
 // Sales
-$stSales = $pdo->prepare("SELECT id, invoice_no AS doc_no, sale_date AS trans_date, 'Sale Bill' AS trans_type, grand_total AS debit, paid_amount AS immediate_credit, (grand_total - paid_amount) AS net_debit, notes AS description FROM sales WHERE customer_id = ? AND sale_date BETWEEN ? AND ? AND status = 'completed'");
+$stSales = $pdo->prepare("SELECT id, invoice_no AS doc_no, sale_date AS trans_date, 'Sale Bill' AS trans_type, grand_total AS debit, paid_amount AS immediate_credit, (grand_total - paid_amount) AS net_debit, notes AS description FROM sales WHERE customer_id = ? AND sale_date BETWEEN ? AND ? AND status = 'posted'");
 $stSales->execute([$custId, $startDate, $endDate]);
 $periodSales = $stSales->fetchAll();
 
@@ -158,7 +158,7 @@ foreach ($periodSales as $ps) {
         'type'        => 'Sale Invoice',
         'desc'        => 'Steel Supply Bill' . (!empty($ps['description']) ? ' (' . $ps['description'] . ')' : '') . ((float)$ps['immediate_credit'] > 0 ? ' [Paid at counter: ' . formatCurrency((float)$ps['immediate_credit']) . ']' : ''),
         'debit'       => (float)$ps['debit'],
-        'credit'      => (float)$ps['immediate_credit'],
+        'credit'      => 0.0,
         'link'        => 'print_bill.php?id=' . $ps['id']
     ];
 }
