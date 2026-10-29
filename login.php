@@ -145,7 +145,7 @@ if (isLoggedIn()) {
           msg.style.background = '#e6f9f0';
           msg.style.color = '#12a05a';
           msg.innerText = '✓ Login successful! Redirecting...';
-          setTimeout(() => { window.location.href = 'index.php'; }, 400);
+          setTimeout(() => { window.location.href = json.data?.first_page || 'index.php'; }, 400);
         } else {
           card.classList.remove('shake');
           void card.offsetWidth;

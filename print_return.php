@@ -8,6 +8,11 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 
 requireAuth();
+require_once __DIR__ . '/includes/permissions.php';
+if (!hasPermission('returns')) {
+    http_response_code(403);
+    die("<div style='font-family:sans-serif;padding:30px;color:#c00;'><h3>403 · Access Denied (رسائی ممنوع ہے)</h3><p>You do not have permission to view or print returns.</p></div>");
+}
 
 $id = (int)($_GET['id'] ?? 0);
 $pdo = getPDO();

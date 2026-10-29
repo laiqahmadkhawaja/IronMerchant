@@ -68,14 +68,17 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
 
       <!-- Right: User Identity & Digital Clock -->
       <div class="header-right-tools">
-        <div class="header-user-pill d-none d-xl-flex">
+        <div class="header-user-pill d-none d-xl-flex align-items-center">
           <div class="header-user-avatar">
             <i class="fa-solid fa-user-tie"></i>
           </div>
-          <div class="header-user-info">
+          <div class="header-user-info me-2">
             <span class="user-name"><?= htmlspecialchars($currentUser['name'] ?? 'User') ?></span>
             <span class="user-role"><?= htmlspecialchars($role) ?></span>
           </div>
+          <button type="button" class="btn btn-sm p-1 ms-1 border-0" onclick="openSelfPinModal()" title="Reset My PIN (اپنا پن تبدیل کریں)" style="background: rgba(0,0,0,0.06); border-radius: 6px; font-size: 11px; height: 26px; line-height: 1; color: var(--nv); font-weight: 600;">
+            <i class="fa-solid fa-key text-warning me-1"></i> PIN
+          </button>
         </div>
 
         <div class="header-clock-card" id="liveClockCard">

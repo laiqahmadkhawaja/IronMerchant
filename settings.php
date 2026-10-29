@@ -114,17 +114,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'update_user_pin') {
-            $userId = (int)($_POST['user_id'] ?? 0);
+            $targetUserId = (int)($_POST['user_id'] ?? 0);
+            $currentUserId = (int)($currentUser['id'] ?? 0);
             $newPin = trim($_POST['new_pin'] ?? '');
 
-            if ($userId <= 0 || strlen($newPin) < 4) {
+            // Security: A user can ONLY reset their own PIN, never other users!
+            if ($targetUserId !== $currentUserId) {
+                $errors[] = 'Security restriction: You are only permitted to reset your own PIN, not other users.';
+            } elseif ($targetUserId <= 0 || strlen($newPin) < 4) {
                 $errors[] = 'PIN must be at least 4 digits long.';
             } else {
                 try {
-                    $stPin = $pdo->prepare("UPDATE users SET pin = ? WHERE id = ?");
-                    $stPin->execute([$newPin, $userId]);
-                    logAudit('update', 'users', $userId, "Updated user PIN");
-                    setFlash('success', 'User PIN updated successfully.');
+                    $pwdHash = password_hash($newPin, PASSWORD_DEFAULT);
+                    $stPin = $pdo->prepare("UPDATE users SET pin = ?, password_hash = ? WHERE id = ?");
+                    $stPin->execute([$newPin, $pwdHash, $targetUserId]);
+                    logAudit('update', 'users', $targetUserId, "User updated their own PIN");
+                    setFlash('success', 'Your PIN has been updated successfully! (آپ کا پن تبدیل ہو گیا ہے)');
                     header('Location: settings.php#userSection');
                     exit;
                 } catch (Exception $e) {
@@ -367,13 +372,21 @@ require_once __DIR__ . '/includes/header.php';
                 </td>
                 <td style="padding: 12px 14px;">
                   <div class="d-flex align-items-center gap-2">
-                    <form method="POST" action="settings.php" class="d-flex gap-2">
-                      <?= getCSRFInput() ?>
-                      <input type="hidden" name="action" value="update_user_pin">
-                      <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                      <input type="password" maxlength="6" name="new_pin" class="form-control form-control-sm text-center" required placeholder="••••" style="width: 90px; letter-spacing: 2px;">
-                      <button type="submit" class="btn btn-sm btn-zb-primary">Update</button>
-                    </form>
+                    <?php if ((int)$u['id'] === (int)($currentUser['id'] ?? 0)): ?>
+                      <form method="POST" action="settings.php" class="d-flex gap-2">
+                        <?= getCSRFInput() ?>
+                        <input type="hidden" name="action" value="update_user_pin">
+                        <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                        <input type="password" maxlength="6" name="new_pin" class="form-control form-control-sm text-center" required placeholder="••••" style="width: 90px; letter-spacing: 2px;">
+                        <button type="submit" class="btn btn-sm btn-zb-primary text-nowrap">
+                          <i class="fa-solid fa-key me-1"></i> Update My PIN
+                        </button>
+                      </form>
+                    <?php else: ?>
+                      <span class="badge bg-light text-muted border py-2 px-2" style="font-size: 11.5px; font-weight: 500;">
+                        <i class="fa-solid fa-user-lock me-1 text-secondary"></i> Self-reset only (صرف اپنا پن تبدیل ہو سکتا ہے)
+                      </span>
+                    <?php endif; ?>
                     <?php if (!$isSuperAdmin): ?>
                       <form method="POST" action="settings.php" class="d-inline" onsubmit="return confirm('کیا آپ واقعی اس صارف کو ڈیلیٹ کرنا چاہتے ہیں؟
 Delete user: <?= htmlspecialchars(addslashes($u['name'])) ?>?');">

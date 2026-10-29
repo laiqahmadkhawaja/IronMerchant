@@ -10,27 +10,29 @@ function getCurrentUser(): ?array {
         return null;
     }
 
-    // Self-healing: Ensure role & permissions are always complete and fresh from DB
-    if (empty($_SESSION['user']['role']) || !isset($_SESSION['user']['permissions']) || !is_array($_SESSION['user']['permissions'])) {
-        try {
-            $db = getDB();
-            $stmt = $db->prepare("SELECT id, username, name, role, permissions FROM users WHERE id = ? AND is_active = 1");
-            $stmt->execute([(int)$_SESSION['user']['id']]);
-            $u = $stmt->fetch();
-            if ($u) {
-                $_SESSION['user']['username'] = $u['username'];
-                $_SESSION['user']['name'] = $u['name'];
-                $_SESSION['user']['role'] = $u['role'];
-                $perms = $u['permissions'] ?? [];
-                if (is_string($perms)) {
-                    $decoded = json_decode($perms, true);
-                    $perms = is_array($decoded) ? $decoded : [];
-                }
-                $_SESSION['user']['permissions'] = is_array($perms) ? $perms : [];
+    // Always fetch fresh permissions & role directly from DB so Owner changes apply immediately
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT id, username, name, role, permissions, is_active FROM users WHERE id = ?");
+        $stmt->execute([(int)$_SESSION['user']['id']]);
+        $u = $stmt->fetch();
+        if ($u && (int)$u['is_active'] === 1) {
+            $_SESSION['user']['username'] = $u['username'];
+            $_SESSION['user']['name'] = $u['name'];
+            $_SESSION['user']['role'] = $u['role'];
+            $perms = $u['permissions'] ?? [];
+            if (is_string($perms)) {
+                $decoded = json_decode($perms, true);
+                $perms = is_array($decoded) ? $decoded : [];
             }
-        } catch (\Throwable $e) {
-            // Fail gracefully
+            $_SESSION['user']['permissions'] = is_array($perms) ? $perms : [];
+        } else {
+            // User deleted or suspended
+            unset($_SESSION['user']);
+            return null;
         }
+    } catch (\Throwable $e) {
+        // Fallback to existing session data in case of connection hiccup
     }
 
     return $_SESSION['user'];

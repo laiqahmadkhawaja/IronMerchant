@@ -19,6 +19,9 @@ $db = getDB();
 $user = getCurrentUser();
 
 if ($action === 'list') {
+    if (!hasPermission('bills') && !hasPermission('pos')) {
+        requirePermission('bills');
+    }
     $search = trim((string)($_GET['search'] ?? ''));
     $fromDate = trim((string)($_GET['from_date'] ?? ''));
     $toDate = trim((string)($_GET['to_date'] ?? ''));

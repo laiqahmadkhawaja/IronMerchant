@@ -2,6 +2,14 @@
 // purchase_form.php - Dedicated Purchase Entry Form with Landed Cost
 declare(strict_types=1);
 
+require_once __DIR__ . '/config/app.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+requireAuth();
+requirePerm('purchases');
+
 $pageTitle = 'New Purchase Entry (خریداری اندراج)';
 require_once __DIR__ . '/includes/header.php';
 

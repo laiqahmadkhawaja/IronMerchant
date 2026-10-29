@@ -2,6 +2,23 @@
 // index.php - Dashboard (Multi-Page Architecture)
 declare(strict_types=1);
 
+require_once __DIR__ . '/config/app.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/permissions.php';
+
+requireAuth();
+
+// If user is not allowed to view the dashboard, route them to their assigned allowed page
+if (!hasPermission('dash')) {
+    $firstAllowed = getFirstAllowedPage();
+    if ($firstAllowed && $firstAllowed !== 'index.php') {
+        header('Location: ' . $firstAllowed);
+        exit;
+    }
+    requirePerm('dash');
+}
+
 $pageTitle = 'Dashboard (کاروباری جائزہ)';
 require_once __DIR__ . '/includes/header.php';
 

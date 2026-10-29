@@ -80,9 +80,13 @@ $menuItems = [
     </ul>
   </div>
 
-  <!-- Fixed Bottom Sign Out Footer -->
-  <div class="sidebar-footer">
-    <a href="logout.php" onclick="return confirm('Are you sure you want to log out?');">
+  <!-- Fixed Bottom User Actions Footer -->
+  <div class="sidebar-footer" style="padding: 8px 12px; display: flex; flex-direction: column; gap: 4px;">
+    <a href="#" onclick="openSelfPinModal(); return false;" style="display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.85); font-size: 12.5px; text-decoration: none; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.05);">
+      <span class="icon"><i class="fa-solid fa-key text-warning"></i></span>
+      <span>Reset My PIN (پن کوڈ تبدیل)</span>
+    </a>
+    <a href="logout.php" onclick="return confirm('Are you sure you want to log out?');" style="display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.85); font-size: 12.5px; text-decoration: none; padding: 6px 10px; border-radius: 6px;">
       <span class="icon"><i class="fa-solid fa-right-from-bracket"></i></span>
       <span>Sign Out (لاگ آؤٹ)</span>
     </a>

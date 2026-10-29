@@ -196,20 +196,33 @@ function hasPermission(string $moduleKey): bool {
         $perms = [];
     }
     
-    // Direct match
-    if (in_array($moduleKey, $perms, true)) {
-        return true;
+    // Exact permission check - access ONLY what Owner has granted
+    return in_array($moduleKey, $perms, true);
+}
+
+/**
+ * Return the primary allowed landing page URL for a user based on granted permissions.
+ */
+function getFirstAllowedPage(?array $user = null): string {
+    if ($user === null) {
+        $user = getCurrentUser();
+    }
+    if (!$user) {
+        return 'login.php';
+    }
+    if (strcasecmp((string)($user['role'] ?? ''), 'Owner') === 0) {
+        return 'index.php';
     }
     
-    // Compatibility alias: returns is accessible if user has returns or bills permission
-    if ($moduleKey === 'returns' && in_array('bills', $perms, true)) {
-        return true;
+    $modules = getAvailableModules();
+    foreach ($modules as $group) {
+        foreach ($group['modules'] as $key => $mod) {
+            if (hasPermission($key)) {
+                return $mod['url'];
+            }
+        }
     }
-    if ($moduleKey === 'bills' && in_array('returns', $perms, true)) {
-        return true;
-    }
-    
-    return false;
+    return 'login.php';
 }
 
 /**
@@ -243,8 +256,8 @@ function requirePermission(string $moduleKey): void {
                 The Super Admin (Owner) has restricted your account from accessing this module (<code><?= htmlspecialchars($moduleKey) ?></code>). Please contact the Owner to request access.
               </p>
               <div>
-                <a href="index.php" class="btn btn-zb-primary px-4 py-2">
-                  <i class="fa-solid fa-arrow-left me-1"></i> Return to Dashboard (مرکزی صفحہ پر جائیں)
+                <?php $firstAllowed = getFirstAllowedPage(); ?><a href="<?= htmlspecialchars($firstAllowed) ?>" class="btn btn-zb-primary px-4 py-2">
+                  <i class="fa-solid fa-arrow-left me-1"></i> Return to Allowed Page (مجاز صفحہ پر جائیں)
                 </a>
               </div>
             </div>

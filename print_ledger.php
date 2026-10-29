@@ -11,6 +11,17 @@ require_once __DIR__ . '/includes/functions.php';
 
 requireAuth();
 
+if ($type === 'customer' && !hasPermission('customers')) {
+    http_response_code(403);
+    die("<div style='font-family:sans-serif;padding:30px;color:#c00;'><h3>403 · Access Denied (رسائی ممنوع ہے)</h3><p>You do not have permission to view customer khata ledgers.</p></div>");
+} elseif ($type === 'supplier' && !hasPermission('suppliers')) {
+    http_response_code(403);
+    die("<div style='font-family:sans-serif;padding:30px;color:#c00;'><h3>403 · Access Denied (رسائی ممنوع ہے)</h3><p>You do not have permission to view supplier khata ledgers.</p></div>");
+} elseif ($type === 'account' && !hasPermission('accounts')) {
+    http_response_code(403);
+    die("<div style='font-family:sans-serif;padding:30px;color:#c00;'><h3>403 · Access Denied (رسائی ممنوع ہے)</h3><p>You do not have permission to view financial account ledgers.</p></div>");
+}
+
 $pdo = getPDO();
 $type = trim($_GET['type'] ?? 'customer'); // 'customer', 'supplier', or 'account'
 $id   = (int)($_GET['id'] ?? 0);
