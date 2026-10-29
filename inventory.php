@@ -178,7 +178,7 @@ require_once __DIR__ . '/includes/header.php';
         <span class="text-muted" style="font-size: 13px;">Real-time weighted-average landed cost valuation and steel group inventory</span>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addItemCategoryModal">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#newItemCategoryCollapse" aria-expanded="false" aria-controls="newItemCategoryCollapse" onclick="document.getElementById('newItemCategoryCollapse').scrollIntoView({behavior:'smooth'});">
           <i class="fa-solid fa-layer-group me-1"></i> Add Category (نئی کیٹگری)
         </button>
         <a href="stock_adjust.php" class="btn btn-outline-secondary">
@@ -365,6 +365,39 @@ require_once __DIR__ . '/includes/header.php';
       </div>
     </div>
 
+    <!-- Add Product Category Inline Card (No Modal, Smooth Collapse) -->
+    <div class="collapse mb-4" id="newItemCategoryCollapse">
+      <div class="card shadow-sm" style="border: 1.5px solid #93c5fd; border-radius: 10px; background-color: #f8fafc;">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-bold text-primary">
+            <i class="fa-solid fa-layer-group me-2"></i> Add New Product Category (اسٹاک کی نئی قسم درج کریں)
+          </h6>
+          <button type="button" class="btn-close" data-bs-toggle="collapse" data-bs-target="#newItemCategoryCollapse" aria-label="Close"></button>
+        </div>
+        <div class="card-body p-4">
+          <form method="POST" action="inventory.php">
+            <?= getCSRFInput() ?>
+            <input type="hidden" name="action" value="save_item_category">
+            <div class="row g-3 align-items-end">
+              <div class="col-12 col-md-5">
+                <label class="form-label">Category Name (کیٹگری نام) <span class="text-danger">*</span></label>
+                <input type="text" name="category_name" class="form-control" required placeholder="e.g. MS Square Pipes / پائپ اور چکور نلیاں">
+              </div>
+              <div class="col-12 col-md-5">
+                <label class="form-label">Description (تفصیل) <span class="text-muted">(Optional)</span></label>
+                <input type="text" name="description" class="form-control" placeholder="Brief description of products in this category">
+              </div>
+              <div class="col-12 col-md-2 text-end">
+                <button type="submit" class="btn btn-zb-primary w-100 py-2">
+                  <i class="fa-solid fa-check me-1"></i> Save Category
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- Add / Edit Item Form (No modal - Clean inline Card) -->
     <div class="card" id="itemFormCard" style="border: 1px solid var(--bd); border-radius: 10px;">
       <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
@@ -395,7 +428,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-12 col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                 <label class="form-label mb-0">Category (کیٹیگری)</label>
-                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" style="font-size: 12px;" data-bs-toggle="modal" data-bs-target="#addItemCategoryModal">
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" style="font-size: 12px;" data-bs-toggle="collapse" data-bs-target="#newItemCategoryCollapse" aria-expanded="false" aria-controls="newItemCategoryCollapse" onclick="document.getElementById('newItemCategoryCollapse').scrollIntoView({behavior:'smooth'});">
                   <i class="fa-solid fa-plus-circle me-1"></i>+ New Category
                 </button>
               </div>
@@ -458,38 +491,6 @@ require_once __DIR__ . '/includes/header.php';
       </div>
     </div>
 
-<!-- Modal: Add Item Category (پروڈکٹ کی نئی قسم شامل کریں) -->
-<div class="modal fade" id="addItemCategoryModal" tabindex="-1" aria-labelledby="addItemCategoryModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: 1px solid var(--bd);">
-      <div class="modal-header bg-white py-3">
-        <h6 class="modal-title fw-bold" id="addItemCategoryModalLabel" style="color: var(--nv);">
-          <i class="fa-solid fa-layer-group me-2 text-primary"></i> Add Product Category (اسٹاک کی نئی قسم)
-        </h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="POST" action="inventory.php">
-        <?= getCSRFInput() ?>
-        <input type="hidden" name="action" value="save_item_category">
-        <div class="modal-body p-4">
-          <div class="mb-3">
-            <label class="form-label">Category Name (کیٹگری نام) <span class="text-danger">*</span></label>
-            <input type="text" name="category_name" class="form-control" required placeholder="e.g. MS Square Pipes / پائپ اور چکور نلیاں">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Description (تفصیل) <span class="text-muted">(Optional)</span></label>
-            <textarea name="description" class="form-control" rows="2" placeholder="Brief description of products in this category"></textarea>
-          </div>
-        </div>
-        <div class="modal-footer bg-light py-2 px-4">
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-zb-primary btn-sm px-3">
-            <i class="fa-solid fa-check me-1"></i> Save Category (محفوظ کریں)
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
