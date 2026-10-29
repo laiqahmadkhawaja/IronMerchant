@@ -125,10 +125,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stPin->execute([$newPin, $userId]);
                     logAudit('update', 'users', $userId, "Updated user PIN");
                     setFlash('success', 'User PIN updated successfully.');
-                    header('Location: settings.php');
+                    header('Location: settings.php#userSection');
                     exit;
                 } catch (Exception $e) {
                     $errors[] = $e->getMessage();
+                }
+            }
+        } elseif ($action === 'create_user') {
+            $name     = trim($_POST['name'] ?? '');
+            $username = strtolower(trim($_POST['username'] ?? ''));
+            $role     = trim($_POST['role'] ?? 'Cashier');
+            $pin      = trim($_POST['pin'] ?? '');
+
+            if ($name === '' || $username === '') {
+                $errors[] = 'Full Name and Username are required.';
+            } elseif (strlen($pin) < 4) {
+                $errors[] = 'PIN must be at least 4 digits long.';
+            } else {
+                try {
+                    $chk = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+                    $chk->execute([$username]);
+                    if ($chk->fetch()) {
+                        throw new Exception("Username '$username' is already taken. Please choose another username.");
+                    }
+
+                    // Default permissions by role
+                    $rolePerms = match($role) {
+                        'Owner' => ["dash","pos","bills","purchases","inventory","customers","suppliers","expenses","accounts","vouchers","transfers","closing","reports","backup","settings"],
+                        'Accountant' => ["dash","bills","purchases","inventory","customers","suppliers","expenses","accounts","vouchers","transfers","closing","reports"],
+                        'Purchase Manager' => ["dash","purchases","inventory","suppliers"],
+                        'Inventory Manager' => ["dash","inventory","purchases","suppliers"],
+                        'Cashier' => ["dash","pos","bills","customers","closing"],
+                        default => ["dash","pos","bills"]
+                    };
+                    $permJson = json_encode(array_values(array_unique($rolePerms)), JSON_UNESCAPED_UNICODE);
+                    $pwdHash = password_hash($pin, PASSWORD_DEFAULT);
+
+                    $ins = $pdo->prepare("INSERT INTO users (username, name, role, pin, password_hash, permissions, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                    $ins->execute([$username, $name, $role, $pin, $pwdHash, $permJson]);
+                    $newId = (int)$pdo->lastInsertId();
+
+                    logAudit('create', 'users', $newId, "Created user '$username' with role '$role'");
+                    setFlash('success', "New user '$name' ($username) created successfully.");
+                    header('Location: settings.php#userSection');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = $e->getMessage();
+                }
+            }
+        } elseif ($action === 'delete_user') {
+            $userId = (int)($_POST['user_id'] ?? 0);
+            $st = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+            $st->execute([$userId]);
+            $u = $st->fetch();
+
+            if (!$u) {
+                $errors[] = 'User not found.';
+            } elseif (strcasecmp((string)$u['role'], 'Owner') === 0) {
+                $errors[] = 'Super Admin (Owner) account cannot be deleted.';
+            } else {
+                try {
+                    $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+                    logAudit('delete', 'users', $userId, "Deleted user {$u['username']}");
+                    setFlash('success', "User '{$u['name']}' was successfully deleted.");
+                    header('Location: settings.php#userSection');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = 'Error deleting user: ' . $e->getMessage();
                 }
             }
         }
@@ -242,11 +305,14 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 
     <!-- User PIN & Access Security Card -->
-    <div class="card" style="border: 1px solid var(--bd); border-radius: 10px; overflow: hidden;">
-      <div class="card-header bg-white py-3">
+    <div class="card mb-4" id="userSection" style="border: 1px solid var(--bd); border-radius: 10px; overflow: hidden;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h6 class="mb-0" style="font-weight: 700; color: var(--nv);">
-          <i class="fa-solid fa-users-gear me-2"></i> User Access & Quick Login PIN Management
+          <i class="fa-solid fa-users-gear me-2 text-primary"></i> User Access &amp; Quick Login PIN Management
         </h6>
+        <a href="#addUserCard" class="btn btn-sm btn-zb-primary" onclick="document.getElementById('addUserCard').scrollIntoView({behavior:'smooth'});">
+          <i class="fa-solid fa-user-plus me-1"></i> Add New User (نیا صارف بنائیں)
+        </a>
       </div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" style="font-size: 13.5px;">
@@ -255,9 +321,9 @@ require_once __DIR__ . '/includes/header.php';
               <th style="padding: 12px 14px;">Staff Name</th>
               <th style="padding: 12px 14px;">Username</th>
               <th style="padding: 12px 14px;">Assigned Role</th>
-              <th style="padding: 12px 14px;">Current PIN</th>
+              <th style="padding: 12px 14px;">PIN Status</th>
               <th style="padding: 12px 14px;">Allowed Pages (رسائی کنٹرول)</th>
-              <th style="padding: 12px 14px; width: 260px;">Change Quick Login PIN</th>
+              <th style="padding: 12px 14px; width: 280px;">Change Quick Login PIN</th>
             </tr>
           </thead>
           <tbody>
@@ -274,12 +340,14 @@ require_once __DIR__ . '/includes/header.php';
                 <td style="padding: 12px 14px; font-weight: 600; color: var(--nv);">
                   <?= htmlspecialchars($u['name']) ?>
                 </td>
-                <td style="padding: 12px 14px;"><?= htmlspecialchars($u['username']) ?></td>
+                <td style="padding: 12px 14px; font-family: monospace;"><?= htmlspecialchars($u['username']) ?></td>
                 <td style="padding: 12px 14px;">
                   <span class="badge bg-light text-dark border"><?= htmlspecialchars($u['role']) ?></span>
                 </td>
-                <td style="padding: 12px 14px; font-family: monospace; font-size: 14px; font-weight: 700; color: #475569;">
-                  <?= htmlspecialchars($u['pin']) ?>
+                <td style="padding: 12px 14px;">
+                  <span class="badge bg-light text-secondary border font-monospace" style="letter-spacing: 2px;">
+                    <i class="fa-solid fa-lock me-1 text-muted"></i> ••••
+                  </span>
                 </td>
                 <td style="padding: 12px 14px;">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -298,18 +366,81 @@ require_once __DIR__ . '/includes/header.php';
                   </div>
                 </td>
                 <td style="padding: 12px 14px;">
-                  <form method="POST" action="settings.php" class="d-flex gap-2">
-                    <?= getCSRFInput() ?>
-                    <input type="hidden" name="action" value="update_user_pin">
-                    <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                    <input type="password" maxlength="6" name="new_pin" class="form-control form-control-sm" required placeholder="New 4-digit PIN" style="width: 120px;">
-                    <button type="submit" class="btn btn-sm btn-zb-primary">Update</button>
-                  </form>
+                  <div class="d-flex align-items-center gap-2">
+                    <form method="POST" action="settings.php" class="d-flex gap-2">
+                      <?= getCSRFInput() ?>
+                      <input type="hidden" name="action" value="update_user_pin">
+                      <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                      <input type="password" maxlength="6" name="new_pin" class="form-control form-control-sm text-center" required placeholder="••••" style="width: 90px; letter-spacing: 2px;">
+                      <button type="submit" class="btn btn-sm btn-zb-primary">Update</button>
+                    </form>
+                    <?php if (!$isSuperAdmin): ?>
+                      <form method="POST" action="settings.php" class="d-inline" onsubmit="return confirm('کیا آپ واقعی اس صارف کو ڈیلیٹ کرنا چاہتے ہیں؟
+Delete user: <?= htmlspecialchars(addslashes($u['name'])) ?>?');">
+                        <?= getCSRFInput() ?>
+                        <input type="hidden" name="action" value="delete_user">
+                        <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete User">
+                          <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                      </form>
+                    <?php endif; ?>
+                  </div>
                 </td>
               </tr>
             <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Add New User Form Card (Modal-Free) -->
+    <div class="card mb-4" id="addUserCard" style="border: 1px solid var(--bd); border-radius: 10px;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold" style="color: var(--nv);">
+          <i class="fa-solid fa-user-plus me-2 text-primary"></i> Add New System User (نیا عملہ یا کیشیئر شامل کریں)
+        </h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="settings.php">
+          <?= getCSRFInput() ?>
+          <input type="hidden" name="action" value="create_user">
+
+          <div class="row g-3">
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">Full Name (مکمل نام) <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control" required placeholder="e.g. Hamza Khan">
+            </div>
+
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">Username (لاگ ان نام) <span class="text-danger">*</span></label>
+              <input type="text" name="username" class="form-control" required placeholder="e.g. hamza_cashier" autocomplete="off">
+            </div>
+
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">Assigned Role (عہدہ) <span class="text-danger">*</span></label>
+              <select name="role" class="form-select" required>
+                <option value="Cashier" selected>Cashier (سیلز و کاؤنٹر بلنگ)</option>
+                <option value="Accountant">Accountant (اکاؤنٹس و واؤچرز)</option>
+                <option value="Purchase Manager">Purchase Manager (خریداری و انوینٹری)</option>
+                <option value="Inventory Manager">Inventory Manager (اسٹاک کنٹرول)</option>
+                <option value="Employee">Staff / Viewer (ملازم)</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">Secret Login PIN (پن کوڈ) <span class="text-danger">*</span></label>
+              <input type="password" name="pin" maxlength="6" class="form-control text-center" required placeholder="••••" autocomplete="off" style="letter-spacing: 3px;">
+              <small class="text-muted">Enter 4-6 digit secret login PIN</small>
+            </div>
+
+            <div class="col-12 text-end mt-4">
+              <button type="submit" class="btn btn-zb-primary px-4 fw-bold">
+                <i class="fa-solid fa-user-check me-1"></i> Create User (نیا صارف محفوظ کریں)
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
 

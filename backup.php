@@ -308,7 +308,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-12 col-md-5 d-flex flex-column justify-content-between">
               <div>
                 <label class="form-label fw-bold text-danger">Enter Owner PIN to Confirm (تصدیقی پن کوڈ):</label>
-                <input type="password" name="confirm_pin" class="form-control form-control-lg text-center fw-bold" placeholder="Owner PIN (default: 1234)" required autocomplete="off" style="letter-spacing: 4px;">
+                <input type="password" name="confirm_pin" class="form-control form-control-lg text-center fw-bold" placeholder="••••" required autocomplete="off" style="letter-spacing: 4px;">
                 <small class="text-muted d-block mt-2">
                   <i class="fa-solid fa-lock me-1"></i> Required to protect against accidental deletion.
                 </small>

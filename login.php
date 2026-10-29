@@ -90,7 +90,7 @@ if (isLoggedIn()) {
 
       <div class="form-group">
         <label>Enter PIN / Password</label>
-        <input type="password" id="user-pin" placeholder="Enter PIN (e.g. 1234)" inputmode="numeric" autocomplete="off" required>
+        <input type="password" id="user-pin" placeholder="Enter PIN / پن کوڈ درج کریں" inputmode="numeric" autocomplete="off" required>
       </div>
 
       <button type="submit" class="b a" id="btn-login" style="width:100%;padding:11px;font-size:15px;margin-top:8px;">
