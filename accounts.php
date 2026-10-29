@@ -1,5 +1,5 @@
 <?php
-// accounts.php - Cash, Bank & Mobile Wallet Accounts Management
+// accounts.php - Cash, Bank & Mobile Wallet Accounts Management + Chart of Accounts Management
 declare(strict_types=1);
 
 require_once __DIR__ . '/config/app.php';
@@ -18,12 +18,14 @@ $pdo = getPDO();
 $pageTitle = 'Cash & Bank Accounts (بینک و کیش کھاتے)';
 $errors = [];
 
-// Handle Add / Edit Financial Account
+// Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {
         $action = trim($_POST['action'] ?? '');
+
+        // 1. Save / Update Financial Account
         if ($action === 'save_account') {
             $accId       = (int)($_POST['account_id'] ?? 0);
             $accCode     = trim($_POST['account_code'] ?? '');
@@ -49,13 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($errors)) {
                 try {
                     if ($accId > 0) {
-                        $upd = $pdo->prepare("UPDATE financial_accounts SET account_code = ?, account_name = ?, account_type = ?, bank_name = ?, account_number = ?, coa_id = ? WHERE id = ?");
+                        $upd = $pdo->prepare("UPDATE financial_accounts SET account_code = ?, account_name = ?, account_type = ?, bank_name = ?, account_number = ?, coa_id = ?, is_active = 1 WHERE id = ?");
                         $upd->execute([$accCode, $accName, $accType, $bankName, $accNumber, $coaId, $accId]);
                         logAudit('update', 'financial_accounts', $accId, "Updated financial account $accName ($accCode)");
                         setFlash('success', "Account '$accName' updated successfully.");
                     } else {
                         $openBal = (float)($_POST['opening_balance'] ?? 0);
-                        $ins = $pdo->prepare("INSERT INTO financial_accounts (coa_id, account_code, account_name, account_type, bank_name, account_number, opening_balance, current_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $ins = $pdo->prepare("INSERT INTO financial_accounts (coa_id, account_code, account_name, account_type, bank_name, account_number, opening_balance, current_balance, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)");
                         $ins->execute([$coaId, $accCode, $accName, $accType, $bankName, $accNumber, $openBal, $openBal]);
                         $newId = (int)$pdo->lastInsertId();
                         logAudit('create', 'financial_accounts', $newId, "Created financial account $accName ($accCode) with balance $openBal");
@@ -68,17 +70,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+        // 2. Delete Financial Account (Only allowed if balance is zero)
+        elseif ($action === 'delete_account') {
+            $accId = (int)($_POST['account_id'] ?? 0);
+            $stA = $pdo->prepare("SELECT * FROM financial_accounts WHERE id = ?");
+            $stA->execute([$accId]);
+            $acc = $stA->fetch();
+
+            if (!$acc) {
+                $errors[] = 'Financial account not found.';
+            } elseif (abs((float)$acc['current_balance']) >= 0.01) {
+                $errors[] = 'Cannot delete account with an active non-zero balance (' . formatCurrency((float)$acc['current_balance']) . '). Account balance must be Rs 0.00 first.';
+            } else {
+                try {
+                    // Check if used in vouchers, transfers or expenses
+                    $vCount = (int)$pdo->query("SELECT COUNT(*) FROM vouchers WHERE account_id = $accId")->fetchColumn();
+                    $tCount = (int)$pdo->query("SELECT COUNT(*) FROM inter_account_transfers WHERE from_account_id = $accId OR to_account_id = $accId")->fetchColumn();
+                    $eCount = (int)$pdo->query("SELECT COUNT(*) FROM expenses WHERE payment_account_id = $accId")->fetchColumn();
+
+                    if ($vCount > 0 || $tCount > 0 || $eCount > 0) {
+                        // Deactivate/archive account to preserve ledger integrity
+                        $pdo->prepare("UPDATE financial_accounts SET is_active = 0 WHERE id = ?")->execute([$accId]);
+                        logAudit('deactivate', 'financial_accounts', $accId, "Archived zero-balance account {$acc['account_name']}");
+                        setFlash('success', "Account '{$acc['account_name']}' has historical ledger records and was safely archived/deactivated.");
+                    } else {
+                        // Hard delete when no foreign key references exist
+                        $pdo->prepare("DELETE FROM financial_accounts WHERE id = ?")->execute([$accId]);
+                        logAudit('delete', 'financial_accounts', $accId, "Deleted financial account {$acc['account_name']}");
+                        setFlash('success', "Account '{$acc['account_name']}' was successfully deleted.");
+                    }
+                    header('Location: accounts.php');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = 'Error deleting account: ' . $e->getMessage();
+                }
+            }
+        }
+        // 3. Save / Update Chart of Accounts (COA)
+        elseif ($action === 'save_coa') {
+            $coaId = (int)($_POST['coa_id'] ?? 0);
+            $coaCode = trim($_POST['coa_code'] ?? '');
+            $coaName = trim($_POST['coa_name'] ?? '');
+            $coaType = trim($_POST['coa_type'] ?? 'Asset');
+            $coaSubType = trim($_POST['coa_sub_type'] ?? '');
+
+            if ($coaCode === '' || $coaName === '') {
+                $errors[] = 'COA Account Code and Title are required.';
+            } else {
+                try {
+                    if ($coaId > 0) {
+                        $upd = $pdo->prepare("UPDATE chart_of_accounts SET code = ?, name = ?, type = ?, sub_type = ? WHERE id = ?");
+                        $upd->execute([$coaCode, $coaName, $coaType, $coaSubType, $coaId]);
+                        logAudit('update', 'chart_of_accounts', $coaId, "Updated COA '$coaName' ($coaCode)");
+                        setFlash('success', "Chart of Account '$coaName' ($coaCode) updated successfully.");
+                    } else {
+                        $normalBal = in_array($coaType, ['Asset', 'Expense']) ? 'debit' : 'credit';
+                        $ins = $pdo->prepare("INSERT INTO chart_of_accounts (code, name, type, sub_type, normal_balance, is_system, is_active) VALUES (?, ?, ?, ?, ?, 0, 1)");
+                        $ins->execute([$coaCode, $coaName, $coaType, $coaSubType, $normalBal]);
+                        $newId = (int)$pdo->lastInsertId();
+                        logAudit('create', 'chart_of_accounts', $newId, "Created COA '$coaName' ($coaCode)");
+                        setFlash('success', "New Chart of Account '$coaName' created successfully.");
+                    }
+                    header('Location: accounts.php#coaSection');
+                    exit;
+                } catch (Exception $e) {
+                    $errors[] = 'COA error: ' . $e->getMessage();
+                }
+            }
+        }
     }
 }
 
-// Fetch COA bank/cash accounts for mapping
-$coaAccounts = $pdo->query("SELECT id, code, name FROM chart_of_accounts WHERE type = 'Asset' AND sub_type IN ('Cash', 'Bank', 'Mobile Wallet') ORDER BY code ASC")->fetchAll();
+// Fetch all Chart of Accounts
+$allCoas = $pdo->query("SELECT id, code, name, type, sub_type, is_system FROM chart_of_accounts WHERE is_active = 1 ORDER BY code ASC")->fetchAll();
 
-// Fetch all financial accounts with COA info
+// Fetch all active financial accounts with linked COA
 $accounts = $pdo->query("
     SELECT fa.*, coa.code AS coa_code, coa.name AS coa_name
     FROM financial_accounts fa
-    JOIN chart_of_accounts coa ON fa.coa_id = coa.id
+    LEFT JOIN chart_of_accounts coa ON fa.coa_id = coa.id
+    WHERE fa.is_active = 1
     ORDER BY fa.account_type ASC, fa.account_name ASC
 ")->fetchAll();
 
@@ -99,7 +170,7 @@ foreach ($accounts as $a) {
 }
 $totalLiquid = $totalCash + $totalBank + $totalWallets;
 
-// Check edit mode
+// Check edit mode for Financial Account
 $editAcc = null;
 if (!empty($_GET['edit'])) {
     $eId = (int)$_GET['edit'];
@@ -108,17 +179,29 @@ if (!empty($_GET['edit'])) {
     $editAcc = $stE->fetch();
 }
 
+// Check edit mode for Chart of Accounts (COA)
+$editCoa = null;
+if (!empty($_GET['edit_coa'])) {
+    $cId = (int)$_GET['edit_coa'];
+    $stC = $pdo->prepare("SELECT * FROM chart_of_accounts WHERE id = ?");
+    $stC->execute([$cId]);
+    $editCoa = $stC->fetch();
+}
+
 require_once __DIR__ . '/includes/header.php';
 ?>
 
     <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
       <div>
-        <h4 class="mb-1" style="font-weight: 700; color: var(--nv);">Cash, Bank & Wallet Accounts (کھاتے اور بینک رجسٹر)</h4>
-        <span class="text-muted" style="font-size: 13px;">Manage counter cash registers, current bank accounts, JazzCash wallets, and liquid balances</span>
+        <h4 class="mb-1" style="font-weight: 700; color: var(--nv);">Cash, Bank &amp; Wallet Accounts (کھاتے اور بینک رجسٹر)</h4>
+        <span class="text-muted" style="font-size: 13px;">Manage counter cash registers, current bank accounts, JazzCash wallets, and Chart of Accounts (COA)</span>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
         <a href="transfers.php" class="btn btn-outline-primary">
           <i class="fa-solid fa-money-bill-transfer me-1"></i> Inter-Account Transfer (رقم ٹرانسفر)
+        </a>
+        <a href="#coaSection" class="btn btn-outline-secondary" onclick="document.getElementById('coaSection').scrollIntoView({behavior:'smooth'});">
+          <i class="fa-solid fa-sitemap me-1"></i> Manage COA (چارٹ آف اکاؤنٹس)
         </a>
         <a href="#accountFormCard" class="btn btn-zb-primary" onclick="document.getElementById('accountFormCard').scrollIntoView({behavior:'smooth'});">
           <i class="fa-solid fa-plus me-1"></i> Add Account (نیا بینک / کیش کھاتہ)
@@ -149,7 +232,7 @@ require_once __DIR__ . '/includes/header.php';
         <div class="kpi-card" style="border-left: 4px solid var(--am);">
           <div class="kpi-icon" style="background: rgba(245,166,35,0.1); color: #b7791f;"><i class="fa-solid fa-cash-register"></i></div>
           <div class="kpi-value" style="font-size: 20px;"><?= formatCurrency($totalCash) ?></div>
-          <div class="kpi-label">Counter Cash & Safe (دکان کا کیش)</div>
+          <div class="kpi-label">Counter Cash &amp; Safe (دکان کا کیش)</div>
         </div>
       </div>
       <div class="col-12 col-sm-6 col-xl-3">
@@ -189,61 +272,77 @@ require_once __DIR__ . '/includes/header.php';
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($accounts as $a): 
-              $bal = (float)$a['current_balance'];
-              $typeBadge = match($a['account_type']) {
-                  'Cash' => 'bg-warning-subtle text-warning border-warning',
-                  'Bank' => 'bg-primary-subtle text-primary border-primary',
-                  default => 'bg-info-subtle text-info border-info'
-              };
-            ?>
+            <?php if (empty($accounts)): ?>
               <tr>
-                <td style="padding: 12px 14px; font-weight: 600; color: #475569;">
-                  <?= htmlspecialchars($a['account_code']) ?>
-                </td>
-                <td style="padding: 12px 14px;">
-                  <div style="font-weight: 700; color: var(--nv); font-size: 14px;">
-                    <a href="account_ledger.php?id=<?= $a['id'] ?>" style="color: inherit; text-decoration: none;">
-                      <?= htmlspecialchars($a['account_name']) ?>
-                    </a>
-                  </div>
-                </td>
-                <td style="padding: 12px 14px;">
-                  <span class="badge <?= $typeBadge ?> border"><?= htmlspecialchars($a['account_type']) ?></span>
-                </td>
-                <td style="padding: 12px 14px; color: #475569;">
-                  <?= htmlspecialchars($a['bank_name'] ?? '-') ?>
-                </td>
-                <td style="padding: 12px 14px; font-family: monospace; font-size: 13px;">
-                  <?= htmlspecialchars($a['account_number'] ?? '-') ?>
-                </td>
-                <td style="padding: 12px 14px; font-size: 12.5px; color: #64748b;">
-                  <?= htmlspecialchars($a['coa_code']) ?> - <?= htmlspecialchars($a['coa_name']) ?>
-                </td>
-                <td class="text-end" style="padding: 12px 14px; font-weight: 700;">
-                  <span style="font-size: 15px; color: <?= $bal >= 0 ? 'var(--gn)' : 'var(--rd)' ?>;">
-                    <?= formatCurrency($bal) ?>
-                  </span>
-                </td>
-                <td class="text-center" style="padding: 12px 14px;">
-                  <div class="btn-group btn-group-sm">
-                    <a href="account_ledger.php?id=<?= $a['id'] ?>" class="btn btn-outline-primary" title="View Statement (کھاتہ اسٹیٹمنٹ)">
-                      <i class="fa-solid fa-list-check me-1"></i> Statement
-                    </a>
-                    <a href="accounts.php?edit=<?= $a['id'] ?>#accountFormCard" class="btn btn-outline-secondary" title="Edit Account">
-                      <i class="fa-solid fa-pen"></i>
-                    </a>
-                  </div>
-                </td>
+                <td colspan="8" class="text-center py-4 text-muted">No financial accounts registered yet.</td>
               </tr>
-            <?php endforeach; ?>
+            <?php else: ?>
+              <?php foreach ($accounts as $a): 
+                $bal = (float)$a['current_balance'];
+                $typeBadge = match($a['account_type']) {
+                    'Cash' => 'bg-warning-subtle text-warning border-warning',
+                    'Bank' => 'bg-primary-subtle text-primary border-primary',
+                    default => 'bg-info-subtle text-info border-info'
+                };
+              ?>
+                <tr>
+                  <td style="padding: 12px 14px; font-weight: 600; color: #475569;">
+                    <?= htmlspecialchars($a['account_code']) ?>
+                  </td>
+                  <td style="padding: 12px 14px;">
+                    <div style="font-weight: 700; color: var(--nv); font-size: 14px;">
+                      <a href="account_ledger.php?id=<?= $a['id'] ?>" style="color: inherit; text-decoration: none;">
+                        <?= htmlspecialchars($a['account_name']) ?>
+                      </a>
+                    </div>
+                  </td>
+                  <td style="padding: 12px 14px;">
+                    <span class="badge <?= $typeBadge ?> border"><?= htmlspecialchars($a['account_type']) ?></span>
+                  </td>
+                  <td style="padding: 12px 14px; color: #475569;">
+                    <?= htmlspecialchars($a['bank_name'] ?? '-') ?>
+                  </td>
+                  <td style="padding: 12px 14px; font-family: monospace; font-size: 13px;">
+                    <?= htmlspecialchars($a['account_number'] ?? '-') ?>
+                  </td>
+                  <td style="padding: 12px 14px; font-size: 12.5px; color: #64748b;">
+                    <?= htmlspecialchars((string)($a['coa_code'] ?? '')) ?> - <?= htmlspecialchars((string)($a['coa_name'] ?? 'Unlinked')) ?>
+                  </td>
+                  <td class="text-end" style="padding: 12px 14px; font-weight: 700;">
+                    <span style="font-size: 15px; color: <?= $bal >= 0 ? 'var(--gn)' : 'var(--rd)' ?>;">
+                      <?= formatCurrency($bal) ?>
+                    </span>
+                  </td>
+                  <td class="text-center" style="padding: 12px 14px;">
+                    <div class="btn-group btn-group-sm">
+                      <a href="account_ledger.php?id=<?= $a['id'] ?>" class="btn btn-outline-primary" title="View Statement (کھاتہ اسٹیٹمنٹ)">
+                        <i class="fa-solid fa-list-check me-1"></i> Statement
+                      </a>
+                      <a href="accounts.php?edit=<?= $a['id'] ?>#accountFormCard" class="btn btn-outline-secondary" title="Edit Account">
+                        <i class="fa-solid fa-pen"></i>
+                      </a>
+                      <?php if (abs($bal) < 0.01): ?>
+                        <form method="POST" action="accounts.php" class="d-inline" onsubmit="return confirm('کیا آپ واقعی یہ اکاؤنٹ ڈیلیٹ کرنا چاہتے ہیں؟\nAre you sure you want to delete account: <?= htmlspecialchars(addslashes($a['account_name'])) ?>?');">
+                          <?= getCSRFInput() ?>
+                          <input type="hidden" name="action" value="delete_account">
+                          <input type="hidden" name="account_id" value="<?= $a['id'] ?>">
+                          <button type="submit" class="btn btn-outline-danger" title="Delete Account (Zero Balance)">
+                            <i class="fa-solid fa-trash-can"></i>
+                          </button>
+                        </form>
+                      <?php endif; ?>
+                    </div>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php endif; ?>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Add / Edit Account Form Card (Modal-free, Zero Overlap) -->
-    <div class="card" id="accountFormCard" style="border: 1px solid var(--bd); border-radius: 10px;">
+    <!-- Add / Edit Financial Account Form Card -->
+    <div class="card mb-4" id="accountFormCard" style="border: 1px solid var(--bd); border-radius: 10px;">
       <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
         <h6 class="mb-0" style="font-weight: 700; color: var(--nv);">
           <?= $editAcc ? 'Edit Financial Account: ' . htmlspecialchars($editAcc['account_name']) : 'Add New Cash / Bank Account (نیا بینک یا کیش کھاتہ شامل کریں)' ?>
@@ -289,13 +388,23 @@ require_once __DIR__ . '/includes/header.php';
             </div>
 
             <div class="col-12 col-md-4">
-              <label class="form-label">Chart of Accounts Mapping</label>
-              <select name="coa_id" class="form-select">
-                <option value="">-- Auto Match COA --</option>
-                <?php foreach ($coaAccounts as $coa): ?>
-                  <option value="<?= $coa['id'] ?>" <?= (($editAcc['coa_id'] ?? 0) == $coa['id']) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($coa['code']) ?> - <?= htmlspecialchars($coa['name']) ?>
-                  </option>
+              <label class="form-label">Linked Chart of Accounts (COA تبدیل کریں)</label>
+              <select name="coa_id" class="form-select" required>
+                <option value="">-- Select Linked COA --</option>
+                <?php 
+                $grouped = [];
+                foreach ($allCoas as $c) {
+                    $grouped[$c['type']][] = $c;
+                }
+                foreach ($grouped as $type => $cList):
+                ?>
+                  <optgroup label="<?= htmlspecialchars($type) ?> Accounts">
+                    <?php foreach ($cList as $coa): ?>
+                      <option value="<?= $coa['id'] ?>" <?= (($editAcc['coa_id'] ?? 0) == $coa['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($coa['code']) ?> - <?= htmlspecialchars($coa['name']) ?> (<?= htmlspecialchars($coa['sub_type'] ?? '') ?>)
+                      </option>
+                    <?php endforeach; ?>
+                  </optgroup>
                 <?php endforeach; ?>
               </select>
             </div>
@@ -313,6 +422,121 @@ require_once __DIR__ . '/includes/header.php';
               <?php endif; ?>
               <button type="submit" class="btn btn-zb-primary px-4">
                 <i class="fa-solid fa-save me-1"></i> <?= $editAcc ? 'Update Account' : 'Save Account (محفوظ کریں)' ?>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Chart of Accounts Master Section (Allow user to change/edit COA) -->
+    <div class="card mb-4" id="coaSection" style="border: 1px solid var(--bd); border-radius: 10px; overflow: hidden;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="mb-0 fw-bold" style="color: var(--nv);">
+            <i class="fa-solid fa-sitemap me-2 text-primary"></i> Chart of Accounts Master (چارٹ آف اکاؤنٹس کی ترامیم)
+          </h6>
+          <small class="text-muted">Rename COA titles, change account codes, or add custom General Ledger accounts</small>
+        </div>
+        <div>
+          <a href="#coaFormCard" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('coaFormCard').scrollIntoView({behavior:'smooth'});">
+            <i class="fa-solid fa-plus me-1"></i> Add / Edit COA Account
+          </a>
+        </div>
+      </div>
+      <div class="table-responsive" style="max-height: 420px;">
+        <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+          <thead style="background: #f8fafc; position: sticky; top: 0; z-index: 2; border-bottom: 2px solid var(--bd);">
+            <tr>
+              <th style="padding: 10px 14px;">COA Code</th>
+              <th style="padding: 10px 14px;">Account Title (اکاؤنٹ نام)</th>
+              <th style="padding: 10px 14px;">Category Type</th>
+              <th style="padding: 10px 14px;">Sub-Type</th>
+              <th style="padding: 10px 14px;">Type / Status</th>
+              <th class="text-center" style="padding: 10px 14px;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($allCoas as $coa): ?>
+              <tr>
+                <td style="padding: 9px 14px; font-weight: 700; color: #334155;">
+                  <?= htmlspecialchars($coa['code']) ?>
+                </td>
+                <td style="padding: 9px 14px; font-weight: 600; color: var(--nv);">
+                  <?= htmlspecialchars($coa['name']) ?>
+                </td>
+                <td style="padding: 9px 14px;">
+                  <span class="badge bg-light text-dark border"><?= htmlspecialchars($coa['type']) ?></span>
+                </td>
+                <td style="padding: 9px 14px; color: #64748b;">
+                  <?= htmlspecialchars($coa['sub_type'] ?? '-') ?>
+                </td>
+                <td style="padding: 9px 14px;">
+                  <?php if (!empty($coa['is_system'])): ?>
+                    <span class="badge bg-secondary-subtle text-secondary border">System</span>
+                  <?php else: ?>
+                    <span class="badge bg-success-subtle text-success border">Custom</span>
+                  <?php endif; ?>
+                </td>
+                <td class="text-center" style="padding: 9px 14px;">
+                  <a href="accounts.php?edit_coa=<?= $coa['id'] ?>#coaFormCard" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Edit this COA Account">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Edit COA
+                  </a>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add / Edit COA Form Card -->
+    <div class="card mb-4" id="coaFormCard" style="border: 1px solid var(--bd); border-radius: 10px;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold" style="color: var(--nv);">
+          <?= $editCoa ? 'Edit Chart of Account: ' . htmlspecialchars($editCoa['name']) . ' (' . htmlspecialchars($editCoa['code']) . ')' : 'Add New Chart of Account (نیا اکاؤنٹ شامل کریں)' ?>
+        </h6>
+        <?php if ($editCoa): ?>
+          <a href="accounts.php#coaSection" class="btn btn-sm btn-outline-secondary">Cancel Edit</a>
+        <?php endif; ?>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="accounts.php">
+          <?= getCSRFInput() ?>
+          <input type="hidden" name="action" value="save_coa">
+          <input type="hidden" name="coa_id" value="<?= $editCoa ? (int)$editCoa['id'] : 0 ?>">
+
+          <div class="row g-3">
+            <div class="col-12 col-md-3">
+              <label class="form-label">COA Account Code <span class="text-danger">*</span></label>
+              <input type="text" name="coa_code" class="form-control" required placeholder="e.g. 1033 or 5195" value="<?= htmlspecialchars($editCoa['code'] ?? '') ?>">
+            </div>
+
+            <div class="col-12 col-md-5">
+              <label class="form-label">Account Title (اکاؤنٹ کا نام) <span class="text-danger">*</span></label>
+              <input type="text" name="coa_name" class="form-control" required placeholder="e.g. United Bank Limited (UBL)" value="<?= htmlspecialchars($editCoa['name'] ?? '') ?>">
+            </div>
+
+            <div class="col-12 col-md-2">
+              <label class="form-label">Category Type <span class="text-danger">*</span></label>
+              <select name="coa_type" class="form-select" required>
+                <?php foreach (['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'] as $t): ?>
+                  <option value="<?= $t ?>" <?= (($editCoa['type'] ?? 'Asset') === $t) ? 'selected' : '' ?>><?= $t ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-2">
+              <label class="form-label">Sub-Type</label>
+              <input type="text" name="coa_sub_type" class="form-control" placeholder="e.g. Bank, Cash, Operating" value="<?= htmlspecialchars($editCoa['sub_type'] ?? '') ?>">
+            </div>
+
+            <div class="col-12 text-end mt-4">
+              <?php if ($editCoa): ?>
+                <a href="accounts.php#coaSection" class="btn btn-secondary me-2">Cancel</a>
+              <?php endif; ?>
+              <button type="submit" class="btn btn-zb-primary px-4">
+                <i class="fa-solid fa-save me-1"></i> <?= $editCoa ? 'Update Chart of Account' : 'Save COA Account' ?>
               </button>
             </div>
           </div>

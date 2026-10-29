@@ -34,6 +34,9 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   <span class="badge bg-success text-white"><kbd>F8</kbd> or <kbd>Ctrl+Enter</kbd> Save &amp; Print</span>
 </div>
 
+<!-- Alert Area for Live POS notifications -->
+<div id="posAlertArea"></div>
+
 <div class="row g-3">
   <!-- Left Column: Item Selection & Cart Table -->
   <div class="col-12 col-xl-7">
@@ -138,11 +141,11 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       <!-- Optional Customer Name & Phone for Invoice Printing -->
       <div class="row g-2 mb-2">
         <div class="col-7">
-          <label class="form-label" style="font-size: 12.5px;">Customer Name on Bill (اختیاری نام) <span class="text-muted small">(Optional)</span></label>
+          <label class="form-label" style="font-size: 12.5px;">Customer Name on Bill (اختیاری نام) </label>
           <input type="text" id="custNameCustom" class="form-control" placeholder="Optional name (e.g. Haji Aslam / Site Manager)">
         </div>
         <div class="col-5">
-          <label class="form-label" style="font-size: 12.5px;">Phone / WhatsApp (اختیاری فون) <span class="text-muted small">(Optional)</span></label>
+          <label class="form-label" style="font-size: 12.5px;">Phone / WhatsApp (اختیاری فون) </label>
           <input type="text" id="custPhoneCustom" class="form-control" placeholder="Optional 0300-1234567">
         </div>
       </div>
@@ -243,7 +246,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()">
         <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)
         <div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;">
-          <i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save
+          <!-- <i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save -->
         </div>
       </button>
     </div>
@@ -437,6 +440,22 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       }
     }
 
+    const custTitle = opt ? opt.text.split(' (Rs')[0].trim() : 'Customer';
+    const netFormatted = 'Rs ' + grand.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    const paidFormatted = (paidVal !== '' && paidVal !== null) ? ('Rs ' + parseFloat(paidVal).toLocaleString('en-US', { minimumFractionDigits: 2 })) : netFormatted;
+
+    const confirmMsg = `کیا آپ یہ سیل بل محفوظ کر کے پرنٹ کھولنا چاہتے ہیں؟\n` +
+      `-----------------------------------------\n` +
+      `گاہک (Customer): ${custTitle}\n` +
+      `کل رقم (Total Bill): ${netFormatted}\n` +
+      `وصولی (Paid Amount): ${paidFormatted}\n` +
+      `-----------------------------------------\n` +
+      `Confirm: Save sale and open print bill in a new tab?`;
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
     const btn = document.getElementById('btnSubmitBill');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Saving Bill...';
@@ -457,7 +476,19 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       const res = await fetch('ajax/sales.php?action=create', { method: 'POST', body: formData });
       const json = await res.json();
       if (json.success) {
-        window.location.href = `print_bill.php?id=${json.data.id}`;
+        const printUrl = `print_bill.php?id=${json.data.id}`;
+        // Open bill print in new tab
+        const win = window.open(printUrl, '_blank');
+
+        const invoiceNo = json.data.invoice_no || `ID #${json.data.id}`;
+        let alertMsg = `<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">` +
+          `<div><i class="fa-solid fa-circle-check text-success fs-5 me-2"></i>` +
+          `<strong>کامیابی!</strong> سیل بل <strong>${invoiceNo}</strong> کامیابی سے محفوظ ہو گیا اور نئے ٹیب میں پرنٹ کے لیے کھول دیا گیا ہے۔</div>` +
+          `<div><a href="${printUrl}" target="_blank" class="btn btn-sm btn-success fw-bold"><i class="fa-solid fa-print me-1"></i> دوبارہ پرنٹ کھولیں (Re-open Print)</a></div>` +
+          `</div>`;
+        showPosAlert('success', alertMsg);
+
+        resetPosForm();
       } else {
         alert(json.message || 'بل محفوظ کرنے میں غلطی واقع ہوئی۔');
         btn.disabled = false;
@@ -468,6 +499,45 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       btn.disabled = false;
       btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)<div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;"><i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save</div>';
     }
+  }
+
+  function showPosAlert(type, html) {
+    const area = document.getElementById('posAlertArea');
+    if (area) {
+      area.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show shadow-sm mb-3" role="alert">
+          ${html}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `;
+      area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function resetPosForm() {
+    cart = [];
+    renderCart();
+    document.getElementById('discountAmount').value = '0';
+    document.getElementById('labourCharge').value = '0';
+    document.getElementById('deliveryCharge').value = '0';
+    document.getElementById('paidAmount').value = '';
+    document.getElementById('paymentMethod').value = 'Cash';
+
+    // Reset customer back to walk-in
+    const custSel = document.getElementById('custSelect');
+    if (custSel) {
+      custSel.selectedIndex = 0;
+      onCustChange();
+    }
+    calculateBillTotals();
+
+    const btn = document.getElementById('btnSubmitBill');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)<div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;"><i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save</div>';
+
+    // Auto-focus on item select for the next bill
+    const itemSel = document.getElementById('itemSelect');
+    if (itemSel) itemSel.focus();
   }
 
   // Keyboard Navigation & Shortcuts Setup
