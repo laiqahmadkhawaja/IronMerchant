@@ -61,6 +61,13 @@ $stmt = $db->prepare("
 $stmt->execute($params);
 $bills = $stmt->fetchAll();
 $isOwner = ($role === 'Owner');
+
+$finAccounts = $db->query("
+    SELECT id, account_name, account_type, bank_name, account_number, current_balance 
+    FROM financial_accounts 
+    WHERE is_active = 1 
+    ORDER BY account_type ASC, id ASC
+")->fetchAll();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -148,8 +155,22 @@ $isOwner = ($role === 'Owner');
               <?php if ($isOwner): ?>
                 <td class="text-success fw-bold"><?= formatMoney($b['profit']) ?></td>
               <?php endif; ?>
-              <td class="text-end">
-                <a href="print_bill.php?id=<?= $b['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-print me-1"></i> Print</a>
+              <td class="text-end text-nowrap">
+                <?php if ($b['status'] !== 'cancelled' && (float)$b['due_amount'] > 0.009): ?>
+                  <button type="button" class="btn btn-sm btn-success me-1" 
+                          onclick='openPayModal(<?= json_encode([
+                            'id' => (int)$b['id'],
+                            'invoice_no' => $b['invoice_no'],
+                            'customer_name' => !empty($b['customer_name_custom']) ? $b['customer_name_custom'] : $b['customer_name'],
+                            'grand_total' => (float)$b['grand_total'],
+                            'paid_amount' => (float)$b['paid_amount'],
+                            'due_amount' => (float)$b['due_amount']
+                          ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'
+                          title="Receive Payment for this Bill">
+                    <i class="fa-solid fa-hand-holding-dollar me-1"></i> Pay / وصولی
+                  </button>
+                <?php endif; ?>
+                <a href="print_bill.php?id=<?= $b['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary me-1"><i class="fa-solid fa-print me-1"></i> Print</a>
                 <?php if ($isOwner && $b['status'] === 'posted'): ?>
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="cancelSaleBill(<?= $b['id'] ?>, '<?= $b['invoice_no'] ?>')">
                     Cancel
@@ -164,7 +185,221 @@ $isOwner = ($role === 'Owner');
   </div>
 </div>
 
+
+<!-- Modal: Receive Bill Payment (بل وصولی) -->
+<div class="modal fade" id="billPaymentModal" tabindex="-1" aria-labelledby="billPaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+      <div class="modal-header text-white" style="background: var(--nv, #14307a);">
+        <h5 class="modal-title fw-bold" id="billPaymentModalLabel">
+          <i class="fa-solid fa-hand-holding-dollar text-warning me-2"></i> Receive Bill Payment · بل کی وصولی
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="billPaymentForm" onsubmit="submitBillPayment(event)">
+        <input type="hidden" name="sale_id" id="pay_sale_id">
+        <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
+
+        <div class="modal-body p-4">
+          <!-- Bill Summary Banner -->
+          <div class="p-3 mb-3 rounded" style="background: #f8fafc; border: 1px solid #cbd5e1;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="text-muted small">Invoice # (بل نمبر):</span>
+              <strong class="font-num text-primary fs-6" id="pay_invoice_no">-</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="text-muted small">Customer (گاہک):</span>
+              <strong id="pay_customer_name">-</strong>
+            </div>
+            <hr class="my-2">
+            <div class="d-flex justify-content-between align-items-center mb-1 small">
+              <span class="text-muted">Total Bill (کل بل):</span>
+              <span class="font-num fw-bold" id="pay_grand_total">-</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1 small">
+              <span class="text-muted">Already Paid (سابقہ وصولی):</span>
+              <span class="font-num text-success fw-bold" id="pay_already_paid">-</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+              <strong class="text-danger">Remaining Due (بقایا بل):</strong>
+              <strong class="font-num text-danger fs-5" id="pay_due_badge">-</strong>
+            </div>
+          </div>
+
+          <!-- Form Fields -->
+          <div class="row g-3">
+            <!-- Payment Date -->
+            <div class="col-6">
+              <label class="form-label small fw-bold">Payment Date (تاریخ) <span class="text-danger">*</span></label>
+              <input type="date" name="payment_date" id="pay_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+            </div>
+
+            <!-- Amount to Pay -->
+            <div class="col-6">
+              <div class="d-flex justify-content-between align-items-center">
+                <label class="form-label small fw-bold">Amount (وصول رقم) <span class="text-danger">*</span></label>
+                <button type="button" class="btn btn-link p-0 text-decoration-none small text-primary fw-bold" onclick="setFullDueAmount()" style="font-size: 11.5px;">
+                  Full Due
+                </button>
+              </div>
+              <div class="input-group">
+                <span class="input-group-text">Rs</span>
+                <input type="number" step="0.01" min="0.01" name="amount" id="pay_amount" class="form-control fw-bold text-success font-num fs-6" required>
+              </div>
+              <div class="form-text text-muted" style="font-size: 11px;">
+                Enter full or partial delivery payment.
+              </div>
+            </div>
+
+            <!-- Receiving Account -->
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Receiving Account (کھاتہ) <span class="text-danger">*</span></label>
+              <select name="account_id" id="pay_account_id" class="form-select" required onchange="onAccountChange(this)">
+                <?php foreach ($finAccounts as $fa): ?>
+                  <option value="<?= $fa['id'] ?>" data-type="<?= htmlspecialchars($fa['account_type']) ?>">
+                    <?= htmlspecialchars($fa['account_name']) ?> (<?= $fa['account_type'] ?>) - Rs <?= number_format((float)$fa['current_balance'], 2) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <!-- Payment Mode -->
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Payment Mode (طریقہ)</label>
+              <select name="payment_mode" id="pay_mode" class="form-select">
+                <option value="Cash">Cash (نقد)</option>
+                <option value="Bank Transfer">Bank Transfer (آن لائن ٹرانسفر)</option>
+                <option value="Cheque">Bank Cheque (بینک چیک)</option>
+                <option value="EasyPaisa/JazzCash">EasyPaisa / JazzCash</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <!-- Reference / Cheque # -->
+            <div class="col-12">
+              <label class="form-label small fw-bold">Ref / Cheque # / Trx ID <span class="text-muted fw-normal">(Optional)</span></label>
+              <input type="text" name="cheque_no" id="pay_cheque_no" class="form-control" placeholder="e.g. Delivery Cash / Chq # 55102 / Trx 8829">
+            </div>
+
+            <!-- Notes / Narration -->
+            <div class="col-12">
+              <label class="form-label small fw-bold">Remarks / Narration (تفصیلات)</label>
+              <input type="text" name="narration" id="pay_narration" class="form-control" placeholder="e.g. Received on delivery by driver">
+            </div>
+          </div>
+
+          <div id="pay_error_alert" class="alert alert-danger mt-3 d-none mb-0 py-2 small"></div>
+        </div>
+
+        <div class="modal-footer bg-light px-4 py-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel (منسوخ)</button>
+          <button type="submit" id="pay_submit_btn" class="btn btn-success fw-bold px-4">
+            <i class="fa-solid fa-check me-1"></i> Confirm Payment (وصولی درج کریں)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+  let currentDueAmount = 0;
+  let payModalInstance = null;
+
+  function openPayModal(sale) {
+    currentDueAmount = parseFloat(sale.due_amount) || 0;
+    document.getElementById('pay_sale_id').value = sale.id;
+    document.getElementById('pay_invoice_no').textContent = sale.invoice_no;
+    document.getElementById('pay_customer_name').textContent = sale.customer_name;
+    document.getElementById('pay_grand_total').textContent = 'Rs ' + parseFloat(sale.grand_total).toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('pay_already_paid').textContent = 'Rs ' + parseFloat(sale.paid_amount).toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('pay_due_badge').textContent = 'Rs ' + currentDueAmount.toLocaleString('en-US', {minimumFractionDigits: 2});
+    
+    const amountInput = document.getElementById('pay_amount');
+    amountInput.value = currentDueAmount.toFixed(2);
+    amountInput.max = currentDueAmount.toFixed(2);
+    
+    document.getElementById('pay_cheque_no').value = '';
+    document.getElementById('pay_narration').value = `Delivery / bill payment for ${sale.invoice_no}`;
+    
+    const errorAlert = document.getElementById('pay_error_alert');
+    errorAlert.classList.add('d-none');
+    errorAlert.textContent = '';
+    
+    const modalEl = document.getElementById('billPaymentModal');
+    payModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    payModalInstance.show();
+  }
+
+  function setFullDueAmount() {
+    document.getElementById('pay_amount').value = currentDueAmount.toFixed(2);
+  }
+
+  function onAccountChange(select) {
+    const selectedOpt = select.options[select.selectedIndex];
+    if (!selectedOpt) return;
+    const type = selectedOpt.getAttribute('data-type');
+    const modeSelect = document.getElementById('pay_mode');
+    if (type === 'Cash') {
+      modeSelect.value = 'Cash';
+    } else if (type === 'Bank' && modeSelect.value === 'Cash') {
+      modeSelect.value = 'Bank Transfer';
+    }
+  }
+
+  async function submitBillPayment(e) {
+    e.preventDefault();
+    const form = document.getElementById('billPaymentForm');
+    const errorAlert = document.getElementById('pay_error_alert');
+    const submitBtn = document.getElementById('pay_submit_btn');
+    
+    errorAlert.classList.add('d-none');
+    errorAlert.textContent = '';
+    
+    const amt = parseFloat(document.getElementById('pay_amount').value) || 0;
+    if (amt <= 0) {
+      errorAlert.textContent = 'Please enter a valid payment amount greater than zero.';
+      errorAlert.classList.remove('d-none');
+      return;
+    }
+    if (amt > currentDueAmount + 0.05) {
+      errorAlert.textContent = `Amount cannot exceed remaining due (Rs ${currentDueAmount.toFixed(2)}).`;
+      errorAlert.classList.remove('d-none');
+      return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Recording...';
+    
+    try {
+      const fd = new FormData(form);
+      const res = await fetch('ajax/sales.php?action=pay_bill', {
+        method: 'POST',
+        body: fd
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (payModalInstance) {
+          payModalInstance.hide();
+        }
+        const printUpdated = confirm(`✅ ${json.message}\n\nکیا آپ اپ ڈیٹ شدہ بل پرنٹ کرنا چاہتے ہیں؟\n(Do you want to print the updated bill now?)`);
+        if (printUpdated && json.data && json.data.sale_id) {
+          window.open(`print_bill.php?id=${json.data.sale_id}`, '_blank');
+        }
+        window.location.reload();
+      } else {
+        errorAlert.textContent = json.message || 'Failed to record payment.';
+        errorAlert.classList.remove('d-none');
+      }
+    } catch (err) {
+      errorAlert.textContent = 'Server error occurred while communicating with server.';
+      errorAlert.classList.remove('d-none');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Confirm Payment (وصولی درج کریں)';
+    }
+  }
+
   async function cancelSaleBill(id, no) {
     const reason = prompt(`بل نمبر ${no} منسوخ (Cancel) کرنے کی وجہ لکھیں:`);
     if (!reason) return;
@@ -183,5 +418,6 @@ $isOwner = ($role === 'Owner');
     }
   }
 </script>
+
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

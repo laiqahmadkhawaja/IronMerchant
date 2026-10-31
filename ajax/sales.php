@@ -529,4 +529,184 @@ if ($action === 'cancel') {
     }
 }
 
+if ($action === 'pay_bill') {
+    if (!hasPermission('bills') && !hasPermission('pos')) {
+        requirePermission('bills');
+    }
+
+    $saleId = (int)($_POST['sale_id'] ?? 0);
+    $amount = (float)($_POST['amount'] ?? 0);
+    $paymentDate = trim((string)($_POST['payment_date'] ?? date('Y-m-d')));
+    if ($paymentDate === '') {
+        $paymentDate = date('Y-m-d');
+    }
+    $accountId = (int)($_POST['account_id'] ?? 0);
+    $paymentMode = trim((string)($_POST['payment_mode'] ?? 'Cash'));
+    $chequeNo = trim((string)($_POST['cheque_no'] ?? ''));
+    $narration = trim((string)($_POST['narration'] ?? ''));
+
+    if ($saleId <= 0) {
+        jsonError('Invalid sale bill selected.');
+    }
+    if ($amount <= 0.009) {
+        jsonError('Payment amount must be greater than zero.');
+    }
+    if ($accountId <= 0) {
+        jsonError('Please select a valid receiving Cash/Bank account.');
+    }
+
+    $db->beginTransaction();
+    try {
+        // 1. Lock and validate sale record
+        $stmt = $db->prepare("
+            SELECT s.*, p.name AS customer_name, p.current_balance AS customer_current_balance
+            FROM sales s
+            JOIN parties p ON s.customer_id = p.id
+            WHERE s.id = ? FOR UPDATE
+        ");
+        $stmt->execute([$saleId]);
+        $sale = $stmt->fetch();
+        if (!$sale) {
+            throw new Exception('Sale bill not found.');
+        }
+        if ($sale['status'] === 'cancelled') {
+            throw new Exception('Cannot accept payment on a cancelled bill.');
+        }
+        $dueAmount = (float)$sale['due_amount'];
+        if ($dueAmount <= 0.009 || $sale['payment_status'] === 'Paid') {
+            throw new Exception('This bill is already fully paid.');
+        }
+        if ($amount > $dueAmount + 0.05) {
+            throw new Exception("Payment amount (Rs " . number_format($amount, 2) . ") cannot exceed remaining due amount (Rs " . number_format($dueAmount, 2) . ").");
+        }
+
+        // Clamp amount to exact due if slightly off due to float precision
+        if ($amount > $dueAmount) {
+            $amount = $dueAmount;
+        }
+
+        // 2. Lock and validate financial account
+        $stAcc = $db->prepare("
+            SELECT id, account_name, coa_id, account_type, current_balance 
+            FROM financial_accounts 
+            WHERE id = ? AND is_active = 1 FOR UPDATE
+        ");
+        $stAcc->execute([$accountId]);
+        $acc = $stAcc->fetch();
+        if (!$acc) {
+            throw new Exception('Selected receiving account not found or inactive.');
+        }
+
+        $custId = (int)$sale['customer_id'];
+
+        // 3. Lock party record
+        $stParty = $db->prepare("SELECT id, name, current_balance FROM parties WHERE id = ? FOR UPDATE");
+        $stParty->execute([$custId]);
+        $party = $stParty->fetch();
+        if (!$party) {
+            throw new Exception('Customer record not found.');
+        }
+
+        // 4. Generate Voucher Document Number
+        $voucherNo = getNextDocNo('RV', 'vouchers', 'voucher_no');
+        $finalNarration = $narration !== '' ? $narration : "Payment received for Bill #{$sale['invoice_no']} ({$party['name']})";
+
+        // 5. Double Entry Journal
+        // Debit: Receiving Cash/Bank Account (Asset increases)
+        // Credit: Accounts Receivable (Party receivable decreases)
+        $journalLines = [
+            [
+                'account_id'  => (int)$acc['coa_id'],
+                'party_id'    => null,
+                'debit'       => $amount,
+                'credit'      => 0.00,
+                'description' => "Received into {$acc['account_name']} for Bill #{$sale['invoice_no']} ({$party['name']})"
+            ],
+            [
+                'account_id'  => COA_RECEIVABLE,
+                'party_id'    => $custId,
+                'debit'       => 0.00,
+                'credit'      => $amount,
+                'description' => "Payment against Bill #{$sale['invoice_no']} by {$party['name']}"
+            ]
+        ];
+
+        $journalHeader = [
+            'entry_no'    => getNextDocNo('JV', 'journal_entries', 'entry_no'),
+            'entry_date'  => $paymentDate,
+            'source_type' => 'voucher',
+            'narration'   => $finalNarration,
+            'created_by'  => $user['id'] ?? null
+        ];
+
+        $journalId = postJournalEntry($db, $journalHeader, $journalLines);
+
+        // 6. Insert Voucher (RV)
+        $insV = $db->prepare("
+            INSERT INTO vouchers 
+            (voucher_no, voucher_type, voucher_date, party_id, account_id, amount, payment_mode, cheque_no, narration, journal_id, status, created_by, created_at)
+            VALUES (?, 'RV', ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, NOW())
+        ");
+        $insV->execute([
+            $voucherNo,
+            $paymentDate,
+            $custId,
+            $accountId,
+            $amount,
+            $paymentMode,
+            $chequeNo,
+            $finalNarration,
+            $journalId,
+            $user['id'] ?? null
+        ]);
+        $voucherId = (int)$db->lastInsertId();
+
+        // 7. Update Sales Header
+        $newPaid = round((float)$sale['paid_amount'] + $amount, 2);
+        $newDue = max(0.0, round($dueAmount - $amount, 2));
+        $newPaymentStatus = ($newDue <= 0.009) ? 'Paid' : 'Partial';
+
+        $paymentLog = " [PAID: Rs " . number_format($amount, 2) . " via " . $paymentMode . " (Voucher #" . $voucherNo . ") on " . $paymentDate . "]";
+        $updSale = $db->prepare("
+            UPDATE sales 
+            SET paid_amount = ?,
+                due_amount = ?,
+                payment_status = ?,
+                notes = CONCAT(COALESCE(notes, ''), ?)
+            WHERE id = ?
+        ");
+        $updSale->execute([
+            $newPaid,
+            $newDue,
+            $newPaymentStatus,
+            $paymentLog,
+            $saleId
+        ]);
+
+        $db->commit();
+
+        logAudit('PAY_BILL', 'sales', (string)$saleId, [
+            'voucher_no' => $voucherNo,
+            'invoice_no' => $sale['invoice_no'],
+            'amount' => $amount,
+            'new_due' => $newDue,
+            'payment_status' => $newPaymentStatus
+        ]);
+
+        jsonSuccess("Payment of Rs " . number_format($amount, 2) . " successfully recorded for Bill #{$sale['invoice_no']}!", [
+            'sale_id' => $saleId,
+            'voucher_no' => $voucherNo,
+            'voucher_id' => $voucherId,
+            'invoice_no' => $sale['invoice_no'],
+            'paid_amount' => $newPaid,
+            'due_amount' => $newDue,
+            'payment_status' => $newPaymentStatus
+        ]);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        jsonError($e->getMessage());
+    }
+}
+
 jsonError('Invalid action requested.');
