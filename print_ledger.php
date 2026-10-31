@@ -295,7 +295,7 @@ if ($type === 'customer') {
 
     // Fetch Receipts
     $stRV = $pdo->prepare("
-        SELECT v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Receipt' AS trans_type,
+        SELECT v.id, v.created_at, v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Receipt' AS trans_type,
                CONCAT('Received from ', COALESCE(p.name, 'Customer'), ' (', v.payment_mode, IF(v.cheque_no != '', CONCAT(' Ref: ', v.cheque_no), ''), ') ', COALESCE(v.narration, '')) AS description,
                v.amount AS inflow, 0.0 AS outflow
         FROM vouchers v
@@ -307,7 +307,7 @@ if ($type === 'customer') {
 
     // Fetch Supplier Payments
     $stPV = $pdo->prepare("
-        SELECT v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Payment' AS trans_type,
+        SELECT v.id, v.created_at, v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Payment' AS trans_type,
                CONCAT('Paid to ', COALESCE(p.name, 'Supplier'), ' (', v.payment_mode, IF(v.cheque_no != '', CONCAT(' Cheque: ', v.cheque_no), ''), ') ', COALESCE(v.narration, '')) AS description,
                0.0 AS inflow, v.amount AS outflow
         FROM vouchers v
@@ -319,7 +319,7 @@ if ($type === 'customer') {
 
     // Fetch Expenses
     $stEV = $pdo->prepare("
-        SELECT e.expense_date AS trans_date, e.expense_no AS doc_no, 'Expense' AS trans_type,
+        SELECT e.id, e.created_at, e.expense_date AS trans_date, e.expense_no AS doc_no, 'Expense' AS trans_type,
                CONCAT('Expense [', c.name, '] to ', e.payee, ' - ', e.notes) AS description,
                0.0 AS inflow, e.amount AS outflow
         FROM expenses e
@@ -331,7 +331,7 @@ if ($type === 'customer') {
 
     // Fetch Transfers In & Out
     $stTrfIn = $pdo->prepare("
-        SELECT t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer IN' AS trans_type,
+        SELECT t.id, t.created_at, t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer IN' AS trans_type,
                CONCAT('Transferred from ', fa.account_name, ' (Ref: ', t.reference_no, ') ', t.narration) AS description,
                t.amount AS inflow, 0.0 AS outflow
         FROM inter_account_transfers t
@@ -342,7 +342,7 @@ if ($type === 'customer') {
     $trfInEntries = $stTrfIn->fetchAll();
 
     $stTrfOut = $pdo->prepare("
-        SELECT t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer OUT' AS trans_type,
+        SELECT t.id, t.created_at, t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer OUT' AS trans_type,
                CONCAT('Transferred to ', fa.account_name, ' (Ref: ', t.reference_no, IF(t.fee_amount > 0, CONCAT(' Fee: Rs ', t.fee_amount), ''), ') ', t.narration) AS description,
                0.0 AS inflow, (t.amount + t.fee_amount) AS outflow
         FROM inter_account_transfers t
@@ -355,16 +355,40 @@ if ($type === 'customer') {
     $allRaw = array_merge($rEntries, $pEntries, $eEntries, $trfInEntries, $trfOutEntries);
     foreach ($allRaw as $item) {
         $ledgerEntries[] = [
-            'date'   => $item['trans_date'],
-            'doc_no' => $item['doc_no'],
-            'type'   => $item['trans_type'],
-            'desc'   => $item['description'],
-            'debit'  => (float)$item['inflow'],
-            'credit' => (float)$item['outflow']
+            'date'       => $item['trans_date'],
+            'created_at' => $item['created_at'] ?? '',
+            'doc_no'     => $item['doc_no'],
+            'type'       => $item['trans_type'],
+            'desc'       => $item['description'],
+            'debit'      => (float)$item['inflow'],
+            'credit'     => (float)$item['outflow']
         ];
     }
 
-    usort($ledgerEntries, fn($a, $b) => strcmp($a['date'], $b['date']) ?: strcmp($a['doc_no'], $b['doc_no']));
+    usort($ledgerEntries, function($a, $b) {
+        // 1. Transaction Date
+        $dateCmp = strcmp($a['date'], $b['date']);
+        if ($dateCmp !== 0) {
+            return $dateCmp;
+        }
+
+        // 2. Priority: Inflows (1) -> Outflows (2) -> Zero-movement (3)
+        $priA = ($a['debit'] > 0) ? 1 : (($a['credit'] > 0) ? 2 : 3);
+        $priB = ($b['debit'] > 0) ? 1 : (($b['credit'] > 0) ? 2 : 3);
+        if ($priA !== $priB) {
+            return $priA <=> $priB;
+        }
+
+        // 3. Creation timestamp if available
+        $timeA = $a['created_at'] ?? '';
+        $timeB = $b['created_at'] ?? '';
+        if ($timeA !== '' && $timeB !== '' && $timeA !== $timeB) {
+            return strcmp($timeA, $timeB);
+        }
+
+        // 4. Fallback to doc_no
+        return strcmp($a['doc_no'], $b['doc_no']);
+    });
 
     $runningBal = $periodOpeningBalance;
     foreach ($ledgerEntries as &$row) {

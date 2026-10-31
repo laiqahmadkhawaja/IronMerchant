@@ -38,7 +38,7 @@ $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
 // Gather all vouchers & transfers touching this account
 // 1. Receipts (RV) -> Inflow (Debit to Cash/Bank)
 $stRV = $pdo->prepare("
-    SELECT v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Receipt (وصولی)' AS trans_type,
+    SELECT v.id, v.created_at, v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Receipt (وصولی)' AS trans_type,
            CONCAT('Received from ', p.name, ' (', v.payment_mode, IF(v.cheque_no != '', CONCAT(' Ref: ', v.cheque_no), ''), ') ', COALESCE(v.narration, '')) AS description,
            v.amount AS inflow, 0.0 AS outflow
     FROM vouchers v
@@ -50,7 +50,7 @@ $rEntries = $stRV->fetchAll();
 
 // 2. Payments (PV) -> Outflow (Credit to Cash/Bank)
 $stPV = $pdo->prepare("
-    SELECT v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Payment (ادائیگی)' AS trans_type,
+    SELECT v.id, v.created_at, v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Payment (ادائیگی)' AS trans_type,
            CONCAT('Paid to supplier ', p.name, ' (', v.payment_mode, IF(v.cheque_no != '', CONCAT(' Ref: ', v.cheque_no), ''), ') ', COALESCE(v.narration, '')) AS description,
            0.0 AS inflow, v.amount AS outflow
     FROM vouchers v
@@ -62,7 +62,7 @@ $pEntries = $stPV->fetchAll();
 
 // 3. Expenses (EV) -> Outflow
 $stEV = $pdo->prepare("
-    SELECT e.expense_date AS trans_date, e.expense_no AS doc_no, 'Expense (خرچہ)' AS trans_type,
+    SELECT e.id, e.created_at, e.expense_date AS trans_date, e.expense_no AS doc_no, 'Expense (خرچہ)' AS trans_type,
            CONCAT(c.name, ' - Payee: ', COALESCE(e.payee, '-'), ' (', COALESCE(e.notes, ''), ')') AS description,
            0.0 AS inflow, e.amount AS outflow
     FROM expenses e
@@ -74,7 +74,7 @@ $eEntries = $stEV->fetchAll();
 
 // 4. Transfers In -> Inflow
 $stTIn = $pdo->prepare("
-    SELECT t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer IN (آمد)' AS trans_type,
+    SELECT t.id, t.created_at, t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer IN (آمد)' AS trans_type,
            CONCAT('Transfer received from ', fa.account_name, IF(t.reference_no != '', CONCAT(' Ref: ', t.reference_no), ''), ' - ', COALESCE(t.narration, '')) AS description,
            t.amount AS inflow, 0.0 AS outflow
     FROM inter_account_transfers t
@@ -86,7 +86,7 @@ $tInEntries = $stTIn->fetchAll();
 
 // 5. Transfers Out -> Outflow
 $stTOut = $pdo->prepare("
-    SELECT t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer OUT (روانگی)' AS trans_type,
+    SELECT t.id, t.created_at, t.transfer_date AS trans_date, t.transfer_no AS doc_no, 'Transfer OUT (روانگی)' AS trans_type,
            CONCAT('Transfer sent to ', fa.account_name, IF(t.reference_no != '', CONCAT(' Ref: ', t.reference_no), ''), ' - ', COALESCE(t.narration, ''), IF(t.fee_amount > 0, CONCAT(' [Fee: ', t.fee_amount, ']'), '')) AS description,
            0.0 AS inflow, (t.amount + t.fee_amount) AS outflow
     FROM inter_account_transfers t
@@ -96,9 +96,32 @@ $stTOut = $pdo->prepare("
 $stTOut->execute([$accId, $startDate, $endDate]);
 $tOutEntries = $stTOut->fetchAll();
 
-// Merge and sort
+// Merge and sort: Date ASC -> Inflows (1) -> Outflows (2) -> Zero-movement (3) -> Time/Doc ASC
 $allEntries = array_merge($rEntries, $pEntries, $eEntries, $tInEntries, $tOutEntries);
-usort($allEntries, fn($a, $b) => strcmp($a['trans_date'], $b['trans_date']) ?: strcmp($a['doc_no'], $b['doc_no']));
+usort($allEntries, function($a, $b) {
+    // 1. Transaction Date
+    $dateCmp = strcmp($a['trans_date'], $b['trans_date']);
+    if ($dateCmp !== 0) {
+        return $dateCmp;
+    }
+
+    // 2. Priority: Inflows (1) -> Outflows (2) -> Zero-movement (3)
+    $priA = ((float)$a['inflow'] > 0) ? 1 : (((float)$a['outflow'] > 0) ? 2 : 3);
+    $priB = ((float)$b['inflow'] > 0) ? 1 : (((float)$b['outflow'] > 0) ? 2 : 3);
+    if ($priA !== $priB) {
+        return $priA <=> $priB;
+    }
+
+    // 3. Creation timestamp if available
+    $timeA = $a['created_at'] ?? '';
+    $timeB = $b['created_at'] ?? '';
+    if ($timeA !== '' && $timeB !== '' && $timeA !== $timeB) {
+        return strcmp($timeA, $timeB);
+    }
+
+    // 4. Fallback to doc_no
+    return strcmp($a['doc_no'], $b['doc_no']);
+});
 
 // Running Balances
 $runningBal = (float)$account['opening_balance'];

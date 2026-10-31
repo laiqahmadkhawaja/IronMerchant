@@ -409,22 +409,24 @@ if ($action === 'create') {
         // Update sales header with journal ID
         $db->prepare("UPDATE `sales` SET journal_id = ? WHERE id = ?")->execute([$journalId, $saleId]);
 
-        // Create Voucher record for traceability
-        $db->prepare("
-            INSERT INTO `vouchers`
-            (`voucher_no`, `voucher_type`, `voucher_date`, `party_id`, `account_id`, `amount`, `payment_mode`, `narration`, `journal_id`, `status`, `created_by`, `created_at`)
-            VALUES (?, 'RV', ?, ?, ?, ?, ?, ?, ?, 'posted', ?, NOW())
-        ")->execute([
-            getNextDocNo('RV', 'vouchers', 'voucher_no'),
-            $saleDate,
-            $customerId,
-            $paymentAccountId,
-            $paidAmount,
-            $paymentMethod,
-            "Sale Bill #{$invoiceNo} collection",
-            $journalId,
-            $user['id'] ?? null
-        ]);
+        // Create Receipt Voucher if paid immediately
+        if ($paidAmount > 0) {
+            $db->prepare("
+                INSERT INTO `vouchers`
+                (`voucher_no`, `voucher_type`, `voucher_date`, `party_id`, `account_id`, `amount`, `payment_mode`, `narration`, `journal_id`, `status`, `created_by`, `created_at`)
+                VALUES (?, 'RV', ?, ?, ?, ?, ?, ?, ?, 'posted', ?, NOW())
+            ")->execute([
+                getNextDocNo('RV', 'vouchers', 'voucher_no'),
+                $saleDate,
+                $customerId,
+                $paymentAccountId,
+                $paidAmount,
+                $paymentMethod,
+                "Sale Bill #{$invoiceNo} collection",
+                $journalId,
+                $user['id'] ?? null
+            ]);
+        }
 
         $db->commit();
 
