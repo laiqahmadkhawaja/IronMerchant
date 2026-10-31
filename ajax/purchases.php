@@ -401,4 +401,335 @@ if ($action === 'create') {
     }
 }
 
+
+if ($action === 'update') {
+    requirePermission('purchases');
+
+    $purchaseId = (int)($_POST['edit_purchase_id'] ?? 0);
+    if ($purchaseId <= 0) {
+        jsonError('Invalid purchase ID provided for update.');
+    }
+
+    $supplierId = (int)($_POST['supplier_id'] ?? 0);
+    $purchaseDate = trim((string)($_POST['purchase_date'] ?? date('Y-m-d')));
+    $supplierInvNo = trim((string)($_POST['supplier_inv_no'] ?? ''));
+    $itemsJson = $_POST['items'] ?? '[]';
+    $chargesJson = $_POST['charges'] ?? '[]';
+    $discount = max(0.0, (float)($_POST['discount'] ?? 0));
+    $paidAmountInput = $_POST['paid_amount'] ?? null;
+    $paymentAccountId = (int)($_POST['payment_account_id'] ?? 1);
+    $notes = trim((string)($_POST['notes'] ?? ''));
+
+    $rawItems = is_array($itemsJson) ? $itemsJson : json_decode($itemsJson, true);
+    $rawCharges = is_array($chargesJson) ? $chargesJson : json_decode($chargesJson, true);
+
+    if (empty($rawItems)) {
+        jsonError('Please add at least one item to the purchase.');
+    }
+
+    $supStmt = $db->prepare("SELECT id, name, current_balance FROM parties WHERE id = ? AND type = 'supplier'");
+    $supStmt->execute([$supplierId]);
+    $supplier = $supStmt->fetch();
+    if (!$supplier) {
+        jsonError('Selected supplier is invalid.');
+    }
+
+    $db->beginTransaction();
+
+    try {
+        $origStmt = $db->prepare("SELECT * FROM purchases WHERE id = ? FOR UPDATE");
+        $origStmt->execute([$purchaseId]);
+        $oldPurchase = $origStmt->fetch();
+
+        if (!$oldPurchase) {
+            throw new Exception("Original purchase record not found.");
+        }
+        if ($oldPurchase['status'] !== 'posted') {
+            throw new Exception("Cannot edit a purchase that is {$oldPurchase['status']}.");
+        }
+
+        $closingCheck = $db->prepare("SELECT id FROM daily_closings WHERE closing_date = ? AND status = 'finalized'");
+        $closingCheck->execute([$oldPurchase['purchase_date']]);
+        if ($closingCheck->fetch() && ($user['role'] ?? '') !== 'Owner') {
+            throw new Exception("This purchase is locked in a finalized daily closing. Contact owner/admin.");
+        }
+
+        $purchaseNo = $oldPurchase['purchase_no'];
+
+        // Reverse old received inventory
+        $oldItemStmt = $db->prepare("SELECT * FROM purchase_items WHERE purchase_id = ?");
+        $oldItemStmt->execute([$purchaseId]);
+        $oldItems = $oldItemStmt->fetchAll();
+
+        foreach ($oldItems as $oIt) {
+            $db->prepare("UPDATE items SET stock_qty = stock_qty - ? WHERE id = ?")
+               ->execute([(float)$oIt['qty'], (int)$oIt['item_id']]);
+        }
+
+        // Reverse old journal entry
+        if (!empty($oldPurchase['journal_id'])) {
+            reverseJournalEntry($db, (int)$oldPurchase['journal_id'], "Correction/Edit of Purchase #{$purchaseNo}", (int)($user['id'] ?? 1));
+            $db->prepare("UPDATE vouchers SET status = 'reversed' WHERE journal_id = ?")
+               ->execute([(int)$oldPurchase['journal_id']]);
+        }
+
+        // Delete old line items and charges
+        $db->prepare("DELETE FROM purchase_items WHERE purchase_id = ?")->execute([$purchaseId]);
+        $db->prepare("DELETE FROM purchase_charges WHERE purchase_id = ?")->execute([$purchaseId]);
+
+        // Process new items and calculate base amount
+        $subtotal = 0.0;
+        $preparedItems = [];
+
+        foreach ($rawItems as $it) {
+            $itemId = (int)($it['item_id'] ?? 0);
+            $qty = (float)($it['qty'] ?? 0);
+            $rate = (float)($it['unit_rate'] ?? $it['rate'] ?? 0);
+            $lineDiscount = (float)($it['line_discount'] ?? 0);
+
+            if ($itemId <= 0 || $qty <= 0 || $rate <= 0) {
+                throw new InvalidArgumentException("Item quantity and rate must be greater than zero.");
+            }
+
+            $baseAmount = round(($qty * $rate) - $lineDiscount, 2);
+            $subtotal += $baseAmount;
+
+            $preparedItems[] = [
+                'item_id' => $itemId,
+                'qty' => $qty,
+                'unit_rate' => $rate,
+                'line_discount' => $lineDiscount,
+                'base_amount' => $baseAmount
+            ];
+        }
+
+        $totalCharges = 0.0;
+        $totalCapitalizedCharges = 0.0;
+        $preparedCharges = [];
+
+        if (!empty($rawCharges)) {
+            foreach ($rawCharges as $c) {
+                $cName = trim((string)($c['charge_name'] ?? 'Labour'));
+                $cAmt = max(0.0, (float)($c['amount'] ?? 0));
+                $cCap = !empty($c['capitalize_inventory']) ? 1 : 0;
+                $cMethod = trim((string)($c['allocation_method'] ?? 'weight'));
+                $payee = trim((string)($c['payee_name'] ?? ''));
+
+                if ($cAmt > 0) {
+                    $totalCharges += $cAmt;
+                    if ($cCap === 1) {
+                        $totalCapitalizedCharges += $cAmt;
+                    }
+                    $preparedCharges[] = [
+                        'charge_name' => $cName,
+                        'amount' => $cAmt,
+                        'payee_name' => $payee,
+                        'capitalize_inventory' => $cCap,
+                        'allocation_method' => $cMethod
+                    ];
+                }
+            }
+        }
+
+        $landedItems = computePurchaseLandedCosts($preparedItems, $preparedCharges);
+        $grandTotal = round(($subtotal + $totalCharges) - $discount, 2);
+
+        $paidAmount = ($paidAmountInput === null || $paidAmountInput === '') ? 0.0 : max(0.0, (float)$paidAmountInput);
+        if ($paidAmount > $grandTotal) {
+            $paidAmount = $grandTotal;
+        }
+
+        $dueAmount = round($grandTotal - $paidAmount, 2);
+        $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
+
+        $itemInsertStmt = $db->prepare("
+            INSERT INTO `purchase_items`
+            (`purchase_id`, `item_id`, `qty`, `unit_rate`, `line_discount`, `base_amount`, `allocated_charge`, `landed_cost`, `landed_unit_rate`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        $totalInventoryCapitalized = 0.0;
+        foreach ($landedItems as $lItem) {
+            $itemInsertStmt->execute([
+                $purchaseId,
+                $lItem['item_id'],
+                $lItem['qty'],
+                $lItem['unit_rate'],
+                $lItem['line_discount'],
+                $lItem['base_amount'],
+                $lItem['allocated_charge'],
+                $lItem['landed_cost'],
+                $lItem['landed_unit_rate']
+            ]);
+
+            receiveInventoryItem(
+                $db,
+                $lItem['item_id'],
+                $lItem['qty'],
+                $lItem['landed_cost'],
+                $purchaseId,
+                $purchaseDate,
+                $user['id'] ?? null
+            );
+
+            $totalInventoryCapitalized += $lItem['landed_cost'];
+        }
+
+        $chargeInsertStmt = $db->prepare("
+            INSERT INTO `purchase_charges`
+            (`purchase_id`, `charge_name`, `amount`, `payee_name`, `capitalize_inventory`, `allocation_method`)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        foreach ($preparedCharges as $pCharge) {
+            $chargeInsertStmt->execute([
+                $purchaseId,
+                $pCharge['charge_name'],
+                $pCharge['amount'],
+                $pCharge['payee_name'],
+                $pCharge['capitalize_inventory'],
+                $pCharge['allocation_method']
+            ]);
+        }
+
+        $finAcctStmt = $db->prepare("SELECT coa_id FROM financial_accounts WHERE id = ?");
+        $finAcctStmt->execute([$paymentAccountId]);
+        $paymentCoaId = (int)($finAcctStmt->fetchColumn() ?: COA_CASH_MAIN);
+
+        $journalLines = [];
+
+        $journalLines[] = [
+            'account_id' => COA_INVENTORY,
+            'party_id' => null,
+            'description' => "Inventory landed acquisition for edited Purchase #{$purchaseNo}",
+            'debit' => $totalInventoryCapitalized,
+            'credit' => 0.00
+        ];
+
+        $nonCapCharges = $totalCharges - $totalCapitalizedCharges;
+        if ($nonCapCharges > 0) {
+            $journalLines[] = [
+                'account_id' => COA_LABOUR_EXPENSE,
+                'party_id' => null,
+                'description' => "Uncapitalized purchase handling expense #{$purchaseNo}",
+                'debit' => $nonCapCharges,
+                'credit' => 0.00
+            ];
+        }
+
+        if ($discount > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SALES_DISCOUNT,
+                'party_id' => null,
+                'description' => "Purchase discount on edited #{$purchaseNo}",
+                'debit' => 0.00,
+                'credit' => $discount
+            ];
+        }
+
+        if ($dueAmount > 0) {
+            $journalLines[] = [
+                'account_id' => COA_PAYABLE,
+                'party_id' => $supplierId,
+                'description' => "Payable for edited Purchase #{$purchaseNo} from {$supplier['name']}",
+                'debit' => 0.00,
+                'credit' => $dueAmount
+            ];
+        }
+
+        if ($paidAmount > 0) {
+            $journalLines[] = [
+                'account_id' => $paymentCoaId,
+                'party_id' => null,
+                'description' => "Immediate payment for edited Purchase #{$purchaseNo}",
+                'debit' => 0.00,
+                'credit' => $paidAmount
+            ];
+        }
+
+        $journalHeader = [
+            'entry_no' => getNextDocNo('JV', 'journal_entries', 'entry_no'),
+            'entry_date' => $purchaseDate,
+            'source_type' => 'purchase',
+            'source_id' => $purchaseId,
+            'narration' => "Purchase #{$purchaseNo} updated for {$supplier['name']}",
+            'created_by' => $user['id'] ?? null
+        ];
+
+        $newJournalId = postJournalEntry($db, $journalHeader, $journalLines);
+
+        if ($paidAmount > 0) {
+            $db->prepare("
+                INSERT INTO `vouchers`
+                (`voucher_no`, `voucher_type`, `voucher_date`, `party_id`, `account_id`, `amount`, `payment_mode`, `narration`, `journal_id`, `status`, `created_by`, `created_at`)
+                VALUES (?, 'PV', ?, ?, ?, ?, 'Cash', ?, ?, 'posted', ?, NOW())
+            ")->execute([
+                getNextDocNo('PV', 'vouchers', 'voucher_no'),
+                $purchaseDate,
+                $supplierId,
+                $paymentAccountId,
+                $paidAmount,
+                "Payment against edited Purchase #{$purchaseNo}",
+                $newJournalId,
+                $user['id'] ?? null
+            ]);
+        }
+
+        $db->prepare("
+            UPDATE `purchases` SET
+                `supplier_id` = ?,
+                `purchase_date` = ?,
+                `supplier_inv_no` = ?,
+                `subtotal` = ?,
+                `additional_charges` = ?,
+                `discount` = ?,
+                `grand_total` = ?,
+                `paid_amount` = ?,
+                `due_amount` = ?,
+                `payment_status` = ?,
+                `payment_account_id` = ?,
+                `journal_id` = ?,
+                `notes` = ?
+            WHERE `id` = ?
+        ")->execute([
+            $supplierId,
+            $purchaseDate,
+            $supplierInvNo,
+            $subtotal,
+            $totalCharges,
+            $discount,
+            $grandTotal,
+            $paidAmount,
+            $dueAmount,
+            $paymentStatus,
+            $paymentAccountId,
+            $newJournalId,
+            $notes,
+            $purchaseId
+        ]);
+
+        logAudit('UPDATE_PURCHASE', 'purchases', (string)$purchaseId, [
+            'purchase_no' => $purchaseNo,
+            'grand_total' => $grandTotal,
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+            'editor_user' => $user['name'] ?? 'User'
+        ]);
+
+        $db->commit();
+
+        jsonSuccess('Purchase updated successfully with landed cost re-calculated!', [
+            'id' => $purchaseId,
+            'purchase_no' => $purchaseNo,
+            'total_landed_cost' => $totalInventoryCapitalized,
+            'grand_total' => $grandTotal,
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount
+        ]);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        jsonError('Failed to update purchase: ' . $e->getMessage());
+    }
+}
+
 jsonError('Invalid action requested.');

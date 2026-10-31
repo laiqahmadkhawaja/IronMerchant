@@ -23,6 +23,18 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
                 $sql = file_get_contents($seedFile);
                 $db->exec($sql);
             }
+
+        // Auto-heal journal_entries source_type to avoid ENUM truncation error 1265
+        $col = $db->query("SHOW COLUMNS FROM `journal_entries` LIKE 'source_type'")->fetch();
+        if ($col && stripos((string)$col['Type'], 'enum') !== false) {
+            $db->exec("ALTER TABLE `journal_entries` MODIFY COLUMN `source_type` VARCHAR(30) NOT NULL DEFAULT 'voucher'");
+        }
+
+        // Auto-heal parties is_walkin column if missing
+        $pCol = $db->query("SHOW COLUMNS FROM `parties` LIKE 'is_walkin'")->fetch();
+        if (!$pCol) {
+            $db->exec("ALTER TABLE `parties` ADD COLUMN `is_walkin` TINYINT(1) NOT NULL DEFAULT 0 AFTER `type`");
+        }
         }
     } catch (Throwable $e) {
         error_log("Failed to auto-heal chart of accounts: " . $e->getMessage());

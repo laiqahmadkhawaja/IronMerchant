@@ -174,6 +174,11 @@ $finAccounts = $db->query("
                   </button>
                 <?php endif; ?>
                 <a href="print_bill.php?id=<?= $b['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary me-1"><i class="fa-solid fa-print me-1"></i> Print</a>
+                <?php if ($b['status'] === 'posted' && ($isOwner || hasPermission('bills'))): ?>
+                  <a href="pos.php?edit=<?= $b['id'] ?>" class="btn btn-sm btn-outline-warning me-1" title="Edit Bill (?? ??? ?????? ????)">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Edit
+                  </a>
+                <?php endif; ?>
                 <?php if ($isOwner && $b['status'] === 'posted'): ?>
                   <button type="button" class="btn btn-sm btn-outline-danger" onclick="cancelSaleBill(<?= $b['id'] ?>, '<?= $b['invoice_no'] ?>')">
                     Cancel

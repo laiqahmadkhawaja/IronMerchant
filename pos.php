@@ -7,6 +7,32 @@ require_once __DIR__ . '/includes/header.php';
 requirePerm('pos');
 
 $db = getDB();
+$editSaleId = (int)($_GET['edit'] ?? 0);
+$editSale = null;
+$editItems = [];
+$editCharges = [];
+
+if ($editSaleId > 0) {
+    $st = $db->prepare("SELECT * FROM sales WHERE id = ?");
+    $st->execute([$editSaleId]);
+    $editSale = $st->fetch();
+
+    if ($editSale) {
+        $pageTitle = 'Edit Bill #' . htmlspecialchars($editSale['invoice_no']) . ' (?? ???? ????)';
+        $stItems = $db->prepare("
+            SELECT si.*, i.name, i.unit, i.stock_qty, i.item_code
+            FROM sale_items si
+            JOIN items i ON si.item_id = i.id
+            WHERE si.sale_id = ?
+        ");
+        $stItems->execute([$editSaleId]);
+        $editItems = $stItems->fetchAll();
+
+        $stChg = $db->prepare("SELECT * FROM sale_charges WHERE sale_id = ?");
+        $stChg->execute([$editSaleId]);
+        $editCharges = $stChg->fetchAll();
+    }
+}
 $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 $customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
@@ -41,6 +67,15 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 </div>
 
 <!-- Alert Area for Live POS notifications -->
+<?php if ($editSale): ?>
+<div class="alert alert-warning py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #d97706;">
+  <div>
+    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (?? ???? ???)</h5>
+    <small class="text-secondary">Saving changes will safely reverse the previous inventory and accounting postings, then apply the updated bill atomically.</small>
+  </div>
+  <a href="bills.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i> Cancel &amp; Back to Bills</a>
+</div>
+<?php endif; ?>
 <div id="posAlertArea"></div>
 
 <div class="row g-3">
@@ -150,11 +185,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       <div class="row g-2 mb-2">
         <div class="col-7">
           <label class="form-label" style="font-size: 12.5px;">Customer Name on Bill (اختیاری نام) </label>
-          <input type="text" id="custNameCustom" class="form-control" placeholder="Optional name (e.g. Haji Aslam / Site Manager)">
+          <input type="text" id="custNameCustom" class="form-control" value="<?= htmlspecialchars($editSale['customer_name_custom'] ?? '') ?>" placeholder="Optional name (e.g. Haji Aslam / Site Manager)">
         </div>
         <div class="col-5">
           <label class="form-label" style="font-size: 12.5px;">Phone / WhatsApp (اختیاری فون) </label>
-          <input type="text" id="custPhoneCustom" class="form-control" placeholder="Optional 0300-1234567">
+          <input type="text" id="custPhoneCustom" class="form-control" value="<?= htmlspecialchars($editSale['customer_phone_custom'] ?? '') ?>" placeholder="Optional 0300-1234567">
         </div>
       </div>
 
@@ -177,7 +212,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="labourCharge" class="form-control" value="0" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="labourCharge" class="form-control" value="<?= (float)($editSale['labour_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
           <div class="col-6">
@@ -187,7 +222,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="deliveryCharge" class="form-control" value="0" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="deliveryCharge" class="form-control" value="<?= (float)($editSale['delivery_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
         </div>
@@ -197,7 +232,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <label class="form-label">Special Discount (رعایت)</label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="discountAmount" class="form-control" value="0" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="discountAmount" class="form-control" value="<?= (float)($editSale['discount'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
           <div class="col-6">
@@ -252,6 +287,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
       <!-- Submit Button -->
       <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()">
+        <?php if ($editSale): ?>
+          <i class="fa-solid fa-pen-to-square me-2"></i> Update Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (?? ????? ????)
+        <?php else: ?>
+          <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (?? ????? ????)
+        <?php endif; ?>
         <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)
         <div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;">
           <!-- <i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save -->
@@ -262,8 +302,19 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 </div>
 
 <script>
-  const ALLOW_NEGATIVE_STOCK = <?= $allowNegativeStock ? 'true' : 'false' ?>;
-  let cart = [];
+    const ALLOW_NEGATIVE_STOCK = <?= $allowNegativeStock ? 'true' : 'false' ?>;
+  const EDIT_SALE_ID = <?= (int)($editSaleId ?: 0) ?>;
+  let cart = <?= !empty($editItems) ? json_encode(array_map(function($it) {
+      return [
+          'item_id' => (int)$it['item_id'],
+          'name' => $it['name'],
+          'unit' => $it['unit'],
+          'qty' => (float)$it['qty'],
+          'rate' => (float)$it['unit_rate'],
+          'line_discount' => (float)($it['line_discount'] ?? 0),
+          'line_total' => (float)$it['line_total']
+      ];
+  }, $editItems)) : '[]' ?>;
 
   function onItemSelectChange() {
     const sel = document.getElementById('itemSelect');
@@ -514,7 +565,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     formData.append('customer_phone_custom', document.getElementById('custPhoneCustom').value.trim());
 
     try {
-      const res = await fetch('ajax/sales.php?action=create', { method: 'POST', body: formData });
+          if (EDIT_SALE_ID > 0) {
+      formData.append('edit_sale_id', EDIT_SALE_ID);
+    }
+    const endpoint = (EDIT_SALE_ID > 0) ? 'ajax/sales.php?action=update' : 'ajax/sales.php?action=create';
+    const res = await fetch(endpoint, { method: 'POST', body: formData });
       const json = await res.json();
       if (json.success) {
         const printUrl = `print_bill.php?id=${json.data.id}`;
@@ -685,6 +740,22 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
   });
 
   // Init on load
+  <?php if ($editSale): ?>
+    const editCustId = "<?= (int)$editSale['customer_id'] ?>";
+    const custSelEl = document.getElementById('custSelect');
+    if (custSelEl) {
+      custSelEl.value = editCustId;
+    }
+    const payMethodSelEl = document.getElementById('paymentMethod');
+    if (payMethodSelEl) {
+      payMethodSelEl.value = "<?= htmlspecialchars($editSale['payment_method']) ?>";
+    }
+    const depAccEl = document.getElementById('depositAccount');
+    if (depAccEl && "<?= (int)($editSale['payment_account_id'] ?? 0) ?>" > 0) {
+      depAccEl.value = "<?= (int)$editSale['payment_account_id'] ?>";
+    }
+  <?php endif; ?>
+  renderCart();
   onItemSelectChange();
   onCustChange();
   calculateBillTotals();

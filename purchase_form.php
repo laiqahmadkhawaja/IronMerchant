@@ -10,6 +10,34 @@ require_once __DIR__ . '/includes/permissions.php';
 requireAuth();
 requirePerm('purchases');
 
+$db = getDB();
+$editPurId = (int)($_GET['edit'] ?? 0);
+$editPur = null;
+$editItems = [];
+$editCharges = [];
+
+if ($editPurId > 0) {
+    $st = $db->prepare("SELECT * FROM purchases WHERE id = ?");
+    $st->execute([$editPurId]);
+    $editPur = $st->fetch();
+
+    if ($editPur) {
+        $pageTitle = 'Edit Purchase #' . htmlspecialchars($editPur['purchase_no']) . ' (??????? ???? ????)';
+        $stItems = $db->prepare("
+            SELECT pi.*, i.name, i.unit
+            FROM purchase_items pi
+            JOIN items i ON pi.item_id = i.id
+            WHERE pi.purchase_id = ?
+        ");
+        $stItems->execute([$editPurId]);
+        $editItems = $stItems->fetchAll();
+
+        $stChg = $db->prepare("SELECT * FROM purchase_charges WHERE purchase_id = ?");
+        $stChg->execute([$editPurId]);
+        $editCharges = $stChg->fetchAll();
+    }
+}
+
 $pageTitle = 'New Purchase Entry (خریداری اندراج)';
 require_once __DIR__ . '/includes/header.php';
 
@@ -29,6 +57,16 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   </div>
 </div>
 
+<?php if ($editPur): ?>
+<div class="alert alert-warning py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #d97706;">
+  <div>
+    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Purchase #<?= htmlspecialchars($editPur['purchase_no']) ?> (??????? ??? ?????? ???)</h5>
+    <small class="text-secondary">Saving changes will safely reverse previous inventory &amp; ledger postings, then apply the updated purchase atomically.</small>
+  </div>
+  <a href="purchases.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i> Cancel &amp; Back to Purchases</a>
+</div>
+<?php endif; ?>
+
 <div class="zb-card mb-4">
   <div class="row g-3 mb-3">
     <div class="col-12 col-md-5">
@@ -41,11 +79,11 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     </div>
     <div class="col-6 col-md-3">
       <label class="form-label">Purchase Date (تاریخ)</label>
-      <input type="date" id="purDate" class="form-control" value="<?= date('Y-m-d') ?>">
+      <input type="date" id="purDate" class="form-control" value="<?= isset($editPur) ? htmlspecialchars($editPur['purchase_date']) : date('Y-m-d') ?>">
     </div>
     <div class="col-6 col-md-4">
       <label class="form-label">Supplier Bilty / Invoice # (بلٹی / انوائس نمبر)</label>
-      <input type="text" id="purInvNo" class="form-control" placeholder="e.g. MS-9872">
+      <input type="text" id="purInvNo" class="form-control" value="<?= htmlspecialchars($editPur['supplier_inv_no'] ?? '') ?>" placeholder="e.g. MS-9872">
     </div>
   </div>
 
@@ -159,7 +197,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <label class="form-label">Amount Paid to Supplier Now (Rs)</label>
         <div class="input-group">
           <span class="input-group-text">Rs</span>
-          <input type="number" id="purPaid" class="form-control fw-bold" placeholder="0 if full credit purchase" step="any" oninput="calculatePurchaseTotals()">
+          <input type="number" id="purPaid" class="form-control fw-bold" value="<?= isset($editPur) ? (float)$editPur['paid_amount'] : '' ?>" placeholder="0 if full credit purchase" step="any" oninput="calculatePurchaseTotals()">
         </div>
       </div>
       <div class="col-12 col-md-4">
@@ -174,7 +212,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <label class="form-label">Purchase Discount (Rs)</label>
         <div class="input-group">
           <span class="input-group-text">Rs</span>
-          <input type="number" id="purDiscount" class="form-control" value="0" step="any" oninput="calculatePurchaseTotals()">
+          <input type="number" id="purDiscount" class="form-control" value="<?= isset($editPur) ? (float)$editPur['discount'] : 0 ?>" step="any" oninput="calculatePurchaseTotals()">
         </div>
       </div>
     </div>
@@ -207,8 +245,28 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 </div>
 
 <script>
-  let purchaseItems = [];
-  let purchaseCharges = [];
+    const EDIT_PURCHASE_ID = <?= (int)($editPurId ?: 0) ?>;
+  let purchaseItems = <?= !empty($editItems) ? json_encode(array_map(function($it) {
+      return [
+          'item_id' => (int)$it['item_id'],
+          'name' => $it['name'],
+          'unit' => $it['unit'],
+          'qty' => (float)$it['qty'],
+          'unit_rate' => (float)$it['unit_rate'],
+          'line_discount' => (float)($it['line_discount'] ?? 0),
+          'base_amount' => (float)$it['base_amount']
+      ];
+  }, $editItems)) : '[]' ?>;
+
+  let purchaseCharges = <?= !empty($editCharges) ? json_encode(array_map(function($c) {
+      return [
+          'charge_name' => $c['charge_name'],
+          'amount' => (float)$c['amount'],
+          'payee_name' => $c['payee_name'] ?? '',
+          'capitalize_inventory' => (int)$c['capitalize_inventory'],
+          'allocation_method' => $c['allocation_method'] ?? 'weight'
+      ];
+  }, $editCharges)) : '[]' ?>;
 
   function addPurchaseLine() {
     const sel = document.getElementById('purItemSelect');
@@ -411,7 +469,11 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     formData.append('discount', document.getElementById('purDiscount').value);
 
     try {
-      const res = await fetch('ajax/purchases.php?action=create', { method: 'POST', body: formData });
+          if (EDIT_PURCHASE_ID > 0) {
+      formData.append('edit_purchase_id', EDIT_PURCHASE_ID);
+    }
+    const endpoint = (EDIT_PURCHASE_ID > 0) ? 'ajax/purchases.php?action=update' : 'ajax/purchases.php?action=create';
+    const res = await fetch(endpoint, { method: 'POST', body: formData });
       const json = await res.json();
       if (json.success) {
         if (json.data && json.data.id) {
@@ -430,6 +492,19 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Save Purchase & Landed Cost';
     }
   }
+  <?php if ($editPur): ?>
+    const purSupEl = document.getElementById('purSupplier');
+    if (purSupEl) {
+      purSupEl.value = "<?= (int)$editPur['supplier_id'] ?>";
+    }
+    const purAccEl = document.getElementById('purAccount');
+    if (purAccEl && "<?= (int)($editPur['payment_account_id'] ?? 0) ?>" > 0) {
+      purAccEl.value = "<?= (int)$editPur['payment_account_id'] ?>";
+    }
+  <?php endif; ?>
+  renderPurchaseItems();
+  renderCharges();
+  calculatePurchaseTotals();
 </script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

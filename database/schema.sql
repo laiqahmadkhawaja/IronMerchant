@@ -264,7 +264,7 @@ CREATE TABLE IF NOT EXISTS `journal_entries` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `entry_no` VARCHAR(50) NOT NULL UNIQUE,
   `entry_date` DATE NOT NULL,
-  `source_type` ENUM('sale', 'purchase', 'expense', 'transfer', 'voucher', 'closing', 'opening', 'adjustment', 'reversal') NOT NULL,
+  `source_type` VARCHAR(30) NOT NULL DEFAULT 'voucher',
   `source_id` INT DEFAULT NULL,
   `narration` TEXT DEFAULT NULL,
   `total_debit` DECIMAL(18,2) NOT NULL DEFAULT 0.00,

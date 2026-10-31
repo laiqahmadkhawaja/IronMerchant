@@ -131,7 +131,10 @@ $purchases = $stmt->fetchAll();
                 <?php endif; ?>
               </td>
               <td class="text-end">
-                <a href="print_purchase.php?id=<?= $p['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-print me-1"></i> Print / رسید</a>
+                <a href="print_purchase.php?id=<?= $p['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary me-1"><i class="fa-solid fa-print me-1"></i> Print</a>
+                <?php if ($p['status'] === 'posted' && ($isOwner || hasPermission('purchases'))): ?>
+                  <a href="purchase_form.php?edit=<?= $p['id'] ?>" class="btn btn-sm btn-outline-warning" title="Edit Purchase"><i class="fa-solid fa-pen-to-square me-1"></i> Edit</a>
+                <?php endif; ?>
               </td>
             </tr>
           <?php endforeach; ?>

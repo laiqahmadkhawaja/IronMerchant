@@ -30,3 +30,9 @@ UPDATE `company_settings` SET `setting_value` = 'ظفر برادرز آئرن م
 UPDATE `company_settings` SET `setting_value` = 'آپ کے اعتماد کا شکریہ — معیاری سریا، ایماندار وزن، بھروسے کا نام' WHERE `setting_key` = 'company_motto_urdu';
 UPDATE `company_settings` SET `setting_value` = '0300-9641483 · 0300-7499499' WHERE `setting_key` = 'company_phone';
 UPDATE `company_settings` SET `setting_value` = '055-4213194 · 4215185 · 4219151' WHERE `setting_key` = 'company_landline';
+
+-- Fix journal_entries source_type to VARCHAR(30) to avoid ENUM truncation (1265)
+ALTER TABLE journal_entries MODIFY COLUMN source_type VARCHAR(30) NOT NULL DEFAULT 'voucher';
+
+-- Ensure parties has is_walkin flag
+ALTER TABLE parties ADD COLUMN IF NOT EXISTS is_walkin TINYINT(1) NOT NULL DEFAULT 0 AFTER 	ype;

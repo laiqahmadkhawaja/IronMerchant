@@ -475,6 +475,388 @@ if ($action === 'create') {
     }
 }
 
+
+if ($action === 'update') {
+    requirePermission('bills');
+
+    $saleId = (int)($_POST['edit_sale_id'] ?? 0);
+    if ($saleId <= 0) {
+        jsonError('Invalid bill ID provided for update.');
+    }
+
+    $customerId = (int)($_POST['customer_id'] ?? 1);
+    $itemsJson = $_POST['items'] ?? '[]';
+    $items = is_array($itemsJson) ? $itemsJson : json_decode($itemsJson, true);
+    $discount = max(0.0, (float)($_POST['discount'] ?? 0));
+    $labourCharge = max(0.0, (float)($_POST['labour_charge'] ?? 0));
+    $deliveryCharge = max(0.0, (float)($_POST['delivery_charge'] ?? 0));
+    $paymentMethod = trim((string)($_POST['payment_method'] ?? 'Cash'));
+    $paymentAccountId = (int)($_POST['payment_account_id'] ?? 1);
+    if ($paymentAccountId <= 0) {
+        $paymentAccountId = 1;
+    }
+    $notes = trim((string)($_POST['notes'] ?? ''));
+    $paidAmountInput = $_POST['paid_amount'] ?? null;
+    $custNameCustom = trim((string)($_POST['customer_name_custom'] ?? ''));
+    $custPhoneCustom = trim((string)($_POST['customer_phone_custom'] ?? ''));
+
+    if (empty($items)) {
+        jsonError('Please add at least one item to the bill.');
+    }
+
+    // Customer check
+    $custStmt = $db->prepare("SELECT id, name, code, current_balance, is_walkin FROM parties WHERE id = ? AND type = 'customer'");
+    $custStmt->execute([$customerId]);
+    $customer = $custStmt->fetch();
+    if (!$customer) {
+        jsonError('Selected customer is invalid.');
+    }
+
+    $isWalkIn = (!empty($customer['is_walkin']))
+        || ((int)$customer['id'] === 1)
+        || (isset($customer['code']) && strtoupper((string)$customer['code']) === 'CUST-001')
+        || (stripos((string)$customer['name'], 'walk-in') !== false)
+        || (stripos((string)$customer['name'], 'walk in') !== false)
+        || (stripos((string)$customer['name'], 'cash customer') !== false);
+
+    if ($isWalkIn && strcasecmp($paymentMethod, 'Credit') === 0 && ($paidAmountInput === null || (float)$paidAmountInput <= 0)) {
+        jsonError('Pure credit sales without advance payment are prohibited for Walk-in Customers.');
+    }
+
+    $db->beginTransaction();
+
+    try {
+        // 1. Fetch and lock original sale
+        $origStmt = $db->prepare("SELECT * FROM sales WHERE id = ? FOR UPDATE");
+        $origStmt->execute([$saleId]);
+        $oldSale = $origStmt->fetch();
+
+        if (!$oldSale) {
+            throw new Exception("Original sale bill not found.");
+        }
+        if ($oldSale['status'] !== 'posted') {
+            throw new Exception("Cannot edit a bill that is {$oldSale['status']}.");
+        }
+
+        // Daily closing guard: non-owners cannot edit bills on finalized dates
+        $closingCheck = $db->prepare("SELECT id FROM daily_closings WHERE closing_date = ? AND status = 'finalized'");
+        $closingCheck->execute([$oldSale['sale_date']]);
+        if ($closingCheck->fetch() && ($user['role'] ?? '') !== 'Owner') {
+            throw new Exception("This bill is locked in a finalized daily closing. Contact owner/admin.");
+        }
+
+        $invoiceNo = $oldSale['invoice_no'];
+        $saleDate = $oldSale['sale_date'];
+        $saleTime = $oldSale['sale_time'];
+
+        // 2. Reverse old inventory
+        $oldItemStmt = $db->prepare("SELECT * FROM sale_items WHERE sale_id = ?");
+        $oldItemStmt->execute([$saleId]);
+        $oldItems = $oldItemStmt->fetchAll();
+
+        foreach ($oldItems as $oIt) {
+            $db->prepare("UPDATE items SET stock_qty = stock_qty + ? WHERE id = ?")
+               ->execute([(float)$oIt['qty'], (int)$oIt['item_id']]);
+        }
+
+        // 3. Reverse old journal entry (this reverses customer & cash/bank account balances automatically)
+        if (!empty($oldSale['journal_id'])) {
+            reverseJournalEntry($db, (int)$oldSale['journal_id'], "Correction/Edit of Invoice #{$invoiceNo}", (int)($user['id'] ?? 1));
+            $db->prepare("UPDATE vouchers SET status = 'reversed' WHERE journal_id = ?")
+               ->execute([(int)$oldSale['journal_id']]);
+        }
+
+        // 4. Delete old line items and charges
+        $db->prepare("DELETE FROM sale_items WHERE sale_id = ?")->execute([$saleId]);
+        $db->prepare("DELETE FROM sale_charges WHERE sale_id = ?")->execute([$saleId]);
+
+        // 5. Process new items and validate stock
+        $subtotal = 0.0;
+        $totalCogs = 0.0;
+        $validatedItems = [];
+
+        foreach ($items as $it) {
+            $itemId = (int)($it['item_id'] ?? 0);
+            $qty = (float)($it['qty'] ?? 0);
+            $rate = (float)($it['rate'] ?? $it['unit_rate'] ?? 0);
+            $lineDiscount = (float)($it['line_discount'] ?? 0);
+
+            if ($itemId <= 0 || $qty <= 0 || $rate <= 0) {
+                throw new InvalidArgumentException("Invalid item line: quantity and rate must be greater than zero.");
+            }
+
+            $lineTotal = round(($qty * $rate) - $lineDiscount, 2);
+            $subtotal += $lineTotal;
+
+            $validatedItems[] = [
+                'item_id' => $itemId,
+                'qty' => $qty,
+                'unit_rate' => $rate,
+                'line_discount' => $lineDiscount,
+                'line_total' => $lineTotal
+            ];
+        }
+
+        $companySettings = getCompanySettings();
+        $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
+
+        if (!$allowNegativeStock) {
+            $itemQtySums = [];
+            foreach ($validatedItems as $vIt) {
+                $itemQtySums[$vIt['item_id']] = ($itemQtySums[$vIt['item_id']] ?? 0.0) + $vIt['qty'];
+            }
+
+            foreach ($itemQtySums as $chkItemId => $totalReqQty) {
+                $stkStmt = $db->prepare("SELECT name, stock_qty, unit FROM items WHERE id = ? FOR UPDATE");
+                $stkStmt->execute([$chkItemId]);
+                $itemRow = $stkStmt->fetch();
+                if ($itemRow) {
+                    $availStock = (float)$itemRow['stock_qty'];
+                    if ($totalReqQty > $availStock) {
+                        $itemName = $itemRow['name'];
+                        $unit = $itemRow['unit'] ?? 'kg';
+                        throw new InvalidArgumentException("????? ?????? ??! ?????? '{$itemName}' ?? ?????? ????? {$availStock} {$unit} ???");
+                    }
+                }
+            }
+        }
+
+        $additionalCharges = $labourCharge + $deliveryCharge;
+        $grandTotal = round(($subtotal + $additionalCharges) - $discount, 2);
+
+        if ($paidAmountInput === null || $paidAmountInput === '') {
+            $paidAmount = $grandTotal;
+        } else {
+            $paidAmount = max(0.0, (float)$paidAmountInput);
+        }
+
+        if ($paidAmount > $grandTotal) {
+            $paidAmount = $grandTotal;
+        }
+
+        $dueAmount = round($grandTotal - $paidAmount, 2);
+        $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
+
+        // 6. Insert new sale items & deduct inventory
+        $itemInsertStmt = $db->prepare("
+            INSERT INTO `sale_items`
+            (`sale_id`, `item_id`, `qty`, `unit_rate`, `line_discount`, `line_total`, `unit_cogs`, `total_cogs`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        foreach ($validatedItems as $vItem) {
+            $issueResult = issueInventoryItemForSale($db, $vItem['item_id'], $vItem['qty'], $saleId, $saleDate, $user['id'] ?? null);
+            $totalCogs += $issueResult['total_cogs'];
+
+            $itemInsertStmt->execute([
+                $saleId,
+                $vItem['item_id'],
+                $vItem['qty'],
+                $vItem['unit_rate'],
+                $vItem['line_discount'],
+                $vItem['line_total'],
+                $issueResult['unit_cogs'],
+                $issueResult['total_cogs']
+            ]);
+        }
+
+        // 7. Insert new charges
+        if ($labourCharge > 0) {
+            $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Labour', ?)")
+               ->execute([$saleId, $labourCharge]);
+        }
+        if ($deliveryCharge > 0) {
+            $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Delivery/Freight', ?)")
+               ->execute([$saleId, $deliveryCharge]);
+        }
+
+        // 8. Construct new Journal Entry
+        $finAcctStmt = $db->prepare("SELECT coa_id FROM financial_accounts WHERE id = ?");
+        $finAcctStmt->execute([$paymentAccountId]);
+        $paymentCoaId = (int)($finAcctStmt->fetchColumn() ?: COA_CASH_MAIN);
+
+        $journalLines = [];
+
+        if ($paidAmount > 0) {
+            $journalLines[] = [
+                'account_id' => $paymentCoaId,
+                'party_id' => null,
+                'description' => "Payment received for edited Bill #{$invoiceNo}",
+                'debit' => $paidAmount,
+                'credit' => 0.00
+            ];
+        }
+
+        if ($dueAmount > 0) {
+            $journalLines[] = [
+                'account_id' => COA_RECEIVABLE,
+                'party_id' => $customerId,
+                'description' => "Receivable for edited credit sale Bill #{$invoiceNo}",
+                'debit' => $dueAmount,
+                'credit' => 0.00
+            ];
+        }
+
+        if ($discount > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SALES_DISCOUNT,
+                'party_id' => null,
+                'description' => "Discount on edited Bill #{$invoiceNo}",
+                'debit' => $discount,
+                'credit' => 0.00
+            ];
+        }
+
+        if ($subtotal > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SALES_REVENUE,
+                'party_id' => null,
+                'description' => "Sales revenue for edited Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $subtotal
+            ];
+        }
+
+        if ($deliveryCharge > 0) {
+            $journalLines[] = [
+                'account_id' => COA_DELIVERY_INCOME,
+                'party_id' => null,
+                'description' => "Delivery charge on edited Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $deliveryCharge
+            ];
+        }
+        if ($labourCharge > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SERVICE_INCOME,
+                'party_id' => null,
+                'description' => "Labour service on edited Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $labourCharge
+            ];
+        }
+
+        if ($totalCogs > 0) {
+            $journalLines[] = [
+                'account_id' => COA_COGS,
+                'party_id' => null,
+                'description' => "COGS for edited Bill #{$invoiceNo}",
+                'debit' => $totalCogs,
+                'credit' => 0.00
+            ];
+            $journalLines[] = [
+                'account_id' => COA_INVENTORY,
+                'party_id' => null,
+                'description' => "Inventory reduction for edited Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $totalCogs
+            ];
+        }
+
+        $journalHeader = [
+            'entry_no' => getNextDocNo('JV', 'journal_entries', 'entry_no'),
+            'entry_date' => $saleDate,
+            'source_type' => 'sale',
+            'source_id' => $saleId,
+            'narration' => "Sale invoice #{$invoiceNo} updated for {$customer['name']}",
+            'created_by' => $user['id'] ?? null
+        ];
+
+        $newJournalId = postJournalEntry($db, $journalHeader, $journalLines);
+
+        // 9. Create Receipt Voucher if paid amount > 0
+        if ($paidAmount > 0) {
+            $db->prepare("
+                INSERT INTO `vouchers`
+                (`voucher_no`, `voucher_type`, `voucher_date`, `party_id`, `account_id`, `amount`, `payment_mode`, `narration`, `journal_id`, `status`, `created_by`, `created_at`)
+                VALUES (?, 'RV', ?, ?, ?, ?, ?, ?, ?, 'posted', ?, NOW())
+            ")->execute([
+                getNextDocNo('RV', 'vouchers', 'voucher_no'),
+                $saleDate,
+                $customerId,
+                $paymentAccountId,
+                $paidAmount,
+                $paymentMethod,
+                "Sale Bill #{$invoiceNo} collection (Edited)",
+                $newJournalId,
+                $user['id'] ?? null
+            ]);
+        }
+
+        // 10. Update sales header
+        $updateSaleStmt = $db->prepare("
+            UPDATE `sales` SET 
+                `customer_id` = ?,
+                `customer_name_custom` = ?,
+                `customer_phone_custom` = ?,
+                `subtotal` = ?,
+                `labour_charge` = ?,
+                `delivery_charge` = ?,
+                `additional_charges` = ?,
+                `discount` = ?,
+                `grand_total` = ?,
+                `paid_amount` = ?,
+                `due_amount` = ?,
+                `payment_status` = ?,
+                `payment_method` = ?,
+                `payment_account_id` = ?,
+                `total_cogs` = ?,
+                `journal_id` = ?,
+                `notes` = ?,
+                `updated_at` = NOW()
+            WHERE `id` = ?
+        ");
+
+        $updateSaleStmt->execute([
+            $customerId,
+            $custNameCustom ?: null,
+            $custPhoneCustom ?: null,
+            $subtotal,
+            $labourCharge,
+            $deliveryCharge,
+            $additionalCharges,
+            $discount,
+            $grandTotal,
+            $paidAmount,
+            $dueAmount,
+            $paymentStatus,
+            $paymentMethod,
+            $paymentAccountId,
+            $totalCogs,
+            $newJournalId,
+            $notes,
+            $saleId
+        ]);
+
+        logAudit('UPDATE_SALE', 'sales', (string)$saleId, [
+            'invoice_no' => $invoiceNo,
+            'grand_total' => $grandTotal,
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount,
+            'editor_user' => $user['name'] ?? 'User'
+        ]);
+
+        $db->commit();
+
+        jsonSuccess('Bill updated successfully (?? ??? ?????? ????? ?? ???)', [
+            'id' => $saleId,
+            'invoice_no' => $invoiceNo,
+            'grand_total' => $grandTotal,
+            'paid_amount' => $paidAmount,
+            'due_amount' => $dueAmount
+        ]);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        $errMsg = $e->getMessage();
+        if ($e instanceof InvalidArgumentException || strpos($errMsg, '????? ?????? ??') !== false) {
+            jsonError($errMsg);
+        } else {
+            jsonError('Failed to update bill: ' . $errMsg);
+        }
+    }
+}
+
 if ($action === 'cancel') {
     requirePermission('bills');
     if (($user['role'] ?? '') !== 'Owner') {
