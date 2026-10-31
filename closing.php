@@ -362,7 +362,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 // ---------------------------------------------------------
 // COMPUTE LIVE METRICS (For Active Shift or New Closing)
 // ---------------------------------------------------------
-// 1. Sales Metrics for $targetDate
+// Determine exact shift time boundary to prevent cross-shift double-counting
+$shiftStart = $targetDate . ' 00:00:00';
+$shiftEnd   = date('Y-m-d 23:59:59');
+
+if ($activeShift) {
+    // If there is an active shift, scope to its opening time or after prior shift closing
+    $stPriorShift = $pdo->prepare("
+        SELECT closing_date, closing_time, created_at 
+        FROM daily_closings 
+        WHERE id < ? AND status = 'finalized' 
+        ORDER BY id DESC 
+        LIMIT 1
+    ");
+    $stPriorShift->execute([$activeShift['id']]);
+    $priorShift = $stPriorShift->fetch();
+
+    if ($priorShift && !empty($priorShift['closing_time'])) {
+        $priorEndTs = $priorShift['closing_date'] . ' ' . $priorShift['closing_time'];
+        if ($priorEndTs > $shiftStart) {
+            $shiftStart = $priorEndTs;
+        }
+    }
+    if (!empty($activeShift['opening_time'])) {
+        $openTs = ($activeShift['closing_date'] ?? $targetDate) . ' ' . $activeShift['opening_time'];
+        if ($openTs > $shiftStart) {
+            $shiftStart = $openTs;
+        }
+    } elseif (!empty($activeShift['created_at'])) {
+        if ($activeShift['created_at'] > $shiftStart) {
+            $shiftStart = $activeShift['created_at'];
+        }
+    }
+}
+
+// 1. Sales Metrics for active shift window
 $stSales = $pdo->prepare("
     SELECT COALESCE(SUM(subtotal), 0) AS gross_sales,
            COALESCE(SUM(discount), 0) AS discount,
@@ -371,9 +405,9 @@ $stSales = $pdo->prepare("
            COALESCE(SUM(CASE WHEN payment_method != 'Cash' THEN paid_amount ELSE 0 END), 0) AS bank_paid_at_counter,
            COALESCE(SUM(due_amount), 0) AS credit_sales
     FROM sales
-    WHERE sale_date = ? AND status = 'posted'
+    WHERE created_at >= ? AND created_at <= ? AND status = 'posted'
 ");
-$stSales->execute([$targetDate]);
+$stSales->execute([$shiftStart, $shiftEnd]);
 $salesMetrics = $stSales->fetch();
 
 $liveGrossSales   = (float)$salesMetrics['gross_sales'];
@@ -383,38 +417,38 @@ $liveCashSales    = (float)$salesMetrics['cash_paid_at_counter'];
 $liveCreditSales  = (float)$salesMetrics['credit_sales'];
 $liveBankSales    = (float)$salesMetrics['bank_paid_at_counter'];
 
-// 2. Customer Cash Collections (RV) - standalone customer recovery vouchers only
+// 2. Customer Cash Collections (RV) - standalone customer recovery vouchers only in shift window
 $stRV = $pdo->prepare("
     SELECT COALESCE(SUM(v.amount), 0)
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
-    WHERE v.voucher_date = ? 
+    WHERE v.created_at >= ? AND v.created_at <= ?
       AND v.voucher_type = 'RV' 
       AND fa.account_type = 'Cash' 
       AND v.status = 'posted'
       AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
 ");
-$stRV->execute([$targetDate]);
+$stRV->execute([$shiftStart, $shiftEnd]);
 $liveCustCollections = (float)$stRV->fetchColumn();
 
-// 3. Supplier Cash Payments (PV)
+// 3. Supplier Cash Payments (PV) in shift window
 $stPV = $pdo->prepare("
     SELECT COALESCE(SUM(v.amount), 0)
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
-    WHERE v.voucher_date = ? AND v.voucher_type = 'PV' AND fa.account_type = 'Cash' AND v.status = 'posted'
+    WHERE v.created_at >= ? AND v.created_at <= ? AND v.voucher_type = 'PV' AND fa.account_type = 'Cash' AND v.status = 'posted'
 ");
-$stPV->execute([$targetDate]);
+$stPV->execute([$shiftStart, $shiftEnd]);
 $liveSuppPayments = (float)$stPV->fetchColumn();
 
-// 4. Cash Expenses (EV)
+// 4. Cash Expenses (EV) in shift window
 $stEV = $pdo->prepare("
     SELECT COALESCE(SUM(e.amount), 0)
     FROM expenses e
     JOIN financial_accounts fa ON e.payment_account_id = fa.id
-    WHERE e.expense_date = ? AND fa.account_type = 'Cash'
+    WHERE e.created_at >= ? AND e.created_at <= ? AND fa.account_type = 'Cash'
 ");
-$stEV->execute([$targetDate]);
+$stEV->execute([$shiftStart, $shiftEnd]);
 $liveCashExpenses = (float)$stEV->fetchColumn();
 
 // 5. Opening Cash

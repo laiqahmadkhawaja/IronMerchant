@@ -53,18 +53,52 @@ $closeTime   = $closing['closing_time'] ?? '';
 // -----------------------------------------------------------------------------
 // 1. GATHER SHIFT TRANSACTION DETAIL ENTRIES (Transfers, Expense, Income)
 // -----------------------------------------------------------------------------
+// Determine exact shift time boundary to isolate this shift's transactions
+$stPriorShift = $pdo->prepare("
+    SELECT closing_date, closing_time, created_at 
+    FROM daily_closings 
+    WHERE id < ? AND status = 'finalized' 
+    ORDER BY id DESC 
+    LIMIT 1
+");
+$stPriorShift->execute([$closing['id']]);
+$priorShift = $stPriorShift->fetch();
+
+$shiftStart = $closingDate . ' 00:00:00';
+if ($priorShift && !empty($priorShift['closing_time'])) {
+    $priorEndTs = $priorShift['closing_date'] . ' ' . $priorShift['closing_time'];
+    if ($priorEndTs > $shiftStart) {
+        $shiftStart = $priorEndTs;
+    }
+}
+if (!empty($openTime)) {
+    $openTs = $closingDate . ' ' . $openTime;
+    if ($openTs > $shiftStart) {
+        $shiftStart = $openTs;
+    }
+} elseif (!empty($closing['created_at'])) {
+    if ($closing['created_at'] > $shiftStart) {
+        $shiftStart = $closing['created_at'];
+    }
+}
+
+if (!empty($closeTime)) {
+    $shiftEnd = $closingDate . ' ' . $closeTime;
+} else {
+    $shiftEnd = date('Y-m-d 23:59:59');
+}
 
 // A. INCOME ENTRIES (Cash received from Sales & Customer collections)
 $incomeEntries = [];
 
-// Cash Sales
+// Cash Sales in this shift
 $stSales = $pdo->prepare("
     SELECT id, invoice_no, paid_amount, payment_method, sale_date, sale_time, customer_name_custom
     FROM sales
-    WHERE sale_date = ? AND status = 'posted' AND payment_method = 'Cash' AND paid_amount > 0
+    WHERE created_at >= ? AND created_at <= ? AND status = 'posted' AND payment_method = 'Cash' AND paid_amount > 0
     ORDER BY id ASC
 ");
-$stSales->execute([$closingDate]);
+$stSales->execute([$shiftStart, $shiftEnd]);
 while ($s = $stSales->fetch()) {
     $incomeEntries[] = [
         'ref'     => $s['invoice_no'],
@@ -75,20 +109,20 @@ while ($s = $stSales->fetch()) {
     ];
 }
 
-// Standalone Customer Cash Recovery Vouchers (RV)
+// Standalone Customer Cash Recovery Vouchers (RV) in this shift
 $stRV = $pdo->prepare("
     SELECT v.id, v.voucher_no, v.amount, p.name AS party_name, v.party_id
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
     LEFT JOIN parties p ON v.party_id = p.id
-    WHERE v.voucher_date = ? 
+    WHERE v.created_at >= ? AND v.created_at <= ?
       AND v.voucher_type = 'RV' 
       AND fa.account_type = 'Cash' 
       AND v.status = 'posted'
       AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
     ORDER BY v.id ASC
 ");
-$stRV->execute([$closingDate]);
+$stRV->execute([$shiftStart, $shiftEnd]);
 while ($rv = $stRV->fetch()) {
     $incomeEntries[] = [
         'ref'     => $rv['voucher_no'],
@@ -102,16 +136,16 @@ while ($rv = $stRV->fetch()) {
 // B. EXPENSE ENTRIES (Daily Expenses & Supplier Cash Payments)
 $expenseEntries = [];
 
-// Daily Cash Expenses
+// Daily Cash Expenses in this shift
 $stExp = $pdo->prepare("
     SELECT e.id, e.expense_no, e.amount, c.name AS category_name, e.payee
     FROM expenses e
     JOIN expense_categories c ON e.category_id = c.id
     JOIN financial_accounts fa ON e.payment_account_id = fa.id
-    WHERE e.expense_date = ? AND fa.account_type = 'Cash'
+    WHERE e.created_at >= ? AND e.created_at <= ? AND fa.account_type = 'Cash'
     ORDER BY e.id ASC
 ");
-$stExp->execute([$closingDate]);
+$stExp->execute([$shiftStart, $shiftEnd]);
 while ($exp = $stExp->fetch()) {
     $expenseEntries[] = [
         'ref'     => $exp['expense_no'],
@@ -122,16 +156,16 @@ while ($exp = $stExp->fetch()) {
     ];
 }
 
-// Supplier Cash Payments (PV)
+// Supplier Cash Payments (PV) in this shift
 $stPV = $pdo->prepare("
     SELECT v.id, v.voucher_no, v.amount, p.name AS party_name, v.party_id
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
     LEFT JOIN parties p ON v.party_id = p.id
-    WHERE v.voucher_date = ? AND v.voucher_type = 'PV' AND fa.account_type = 'Cash' AND v.status = 'posted'
+    WHERE v.created_at >= ? AND v.created_at <= ? AND v.voucher_type = 'PV' AND fa.account_type = 'Cash' AND v.status = 'posted'
     ORDER BY v.id ASC
 ");
-$stPV->execute([$closingDate]);
+$stPV->execute([$shiftStart, $shiftEnd]);
 while ($pv = $stPV->fetch()) {
     $expenseEntries[] = [
         'ref'     => $pv['voucher_no'],
@@ -150,10 +184,10 @@ $stTrf = $pdo->prepare("
     FROM inter_account_transfers t
     JOIN financial_accounts faFrom ON t.from_account_id = faFrom.id
     JOIN financial_accounts faTo ON t.to_account_id = faTo.id
-    WHERE t.transfer_date = ? AND (faFrom.account_type = 'Cash' OR faTo.account_type = 'Cash') AND t.status = 'posted'
+    WHERE t.created_at >= ? AND t.created_at <= ? AND (faFrom.account_type = 'Cash' OR faTo.account_type = 'Cash') AND t.status = 'posted'
     ORDER BY t.id ASC
 ");
-$stTrf->execute([$closingDate]);
+$stTrf->execute([$shiftStart, $shiftEnd]);
 while ($trf = $stTrf->fetch()) {
     $transferEntries[] = [
         'ref'     => $trf['transfer_no'],
