@@ -802,8 +802,7 @@ if ($action === 'update') {
                 `payment_account_id` = ?,
                 `total_cogs` = ?,
                 `journal_id` = ?,
-                `notes` = ?,
-                `updated_at` = NOW()
+                `notes` = ?
             WHERE `id` = ?
         ");
 
@@ -838,7 +837,7 @@ if ($action === 'update') {
 
         $db->commit();
 
-        jsonSuccess('Bill updated successfully (?? ??? ?????? ????? ?? ???)', [
+        jsonSuccess('Bill updated successfully (بل میں تبدیلی محفوظ ہو گئی)', [
             'id' => $saleId,
             'invoice_no' => $invoiceNo,
             'grand_total' => $grandTotal,
