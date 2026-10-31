@@ -3,6 +3,13 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+if (!function_exists('getCompanySettings')) {
+    require_once __DIR__ . '/functions.php';
+}
+
+$companySettings     = $companySettings ?? getCompanySettings();
+$sidebarBrandName    = $companyName ?? $companySettings['company_name'] ?? (defined('APP_NAME') ? APP_NAME : 'Iron Merchants');
+$sidebarBrandTagline = $companySettings['company_tagline'] ?? (defined('APP_TAGLINE') ? APP_TAGLINE : 'Iron Merchants · ERP');
 
 $currentPage = basename($_SERVER['PHP_SELF'] ?? 'index.php');
 $currentUser = getCurrentUser();
@@ -55,12 +62,12 @@ $menuItems = [
 ];
 ?>
 <aside class="app-sidebar">
-  <!-- Fixed Brand Header -->
+  <!-- Dynamic Brand Header -->
   <div class="sidebar-brand">
     <img src="assets/images/logo.png" alt="Logo">
-    <div>
-      <b>Zafar Brothers</b>
-      <span>Iron Merchants · ERP</span>
+    <div style="min-width: 0; flex: 1;">
+      <b title="<?= htmlspecialchars($sidebarBrandName) ?>" style="font-size: 13px; line-height: 1.25; word-break: break-word;"><?= htmlspecialchars($sidebarBrandName) ?></b>
+      <span style="display: block; font-size: 10.5px; color: var(--am); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($sidebarBrandTagline) ?>"><?= htmlspecialchars($sidebarBrandTagline) ?></span>
     </div>
   </div>
 
