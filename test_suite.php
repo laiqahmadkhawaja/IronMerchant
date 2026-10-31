@@ -29,8 +29,11 @@ function assertTest(string $testName, bool $condition, string $detail = '') {
     }
 }
 
+// Snapshot account balances before running tests to prevent live balance pollution
+$snapshotAccounts = $db->query("SELECT id, current_balance FROM financial_accounts")->fetchAll(PDO::FETCH_KEY_PAIR);
+
 // Cleanup any prior test entries so test suite can run repeatedly
-$testIds = $db->query("SELECT id FROM journal_entries WHERE entry_no LIKE 'TEST-JV-%'")->fetchAll(PDO::FETCH_COLUMN);
+$testIds = $db->query("SELECT id FROM journal_entries WHERE entry_no LIKE 'TEST-%' OR entry_no LIKE 'REV-%' OR narration LIKE 'Test %' OR narration LIKE 'Reversal of entry #TEST%'")->fetchAll(PDO::FETCH_COLUMN);
 if (!empty($testIds)) {
     $inClause = implode(',', $testIds);
     $db->exec("DELETE FROM journal_entry_lines WHERE journal_id IN ($inClause)");
@@ -490,6 +493,19 @@ try {
     );
 } catch (Exception $e) {
     assertTest("Test 15: Zero-Stock Deletion Enforcement", false, $e->getMessage());
+}
+
+// Cleanup test entries and restore financial account balances
+$testIdsEnd = $db->query("SELECT id FROM journal_entries WHERE entry_no LIKE 'TEST-%' OR entry_no LIKE 'REV-%' OR narration LIKE 'Test %' OR narration LIKE 'Reversal of entry #TEST%'")->fetchAll(PDO::FETCH_COLUMN);
+if (!empty($testIdsEnd)) {
+    $inClause = implode(',', $testIdsEnd);
+    $db->exec("DELETE FROM journal_entry_lines WHERE journal_id IN ($inClause)");
+    $db->exec("DELETE FROM journal_entries WHERE id IN ($inClause)");
+}
+if (!empty($snapshotAccounts)) {
+    foreach ($snapshotAccounts as $accId => $origBal) {
+        $db->prepare("UPDATE financial_accounts SET current_balance = ? WHERE id = ?")->execute([$origBal, $accId]);
+    }
 }
 
 echo "\n========================================================\n";
