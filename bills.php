@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $pageTitle = 'Sales Bills (سیل بلز)';
 require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/csrf.php';
 requirePerm('bills');
 
 $db = getDB();
@@ -200,7 +201,7 @@ $finAccounts = $db->query("
       </div>
       <form id="billPaymentForm" onsubmit="submitBillPayment(event)">
         <input type="hidden" name="sale_id" id="pay_sale_id">
-        <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
+        <?= getCSRFInput() ?>
 
         <div class="modal-body p-4">
           <!-- Bill Summary Banner -->
