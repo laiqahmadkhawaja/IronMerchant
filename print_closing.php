@@ -81,22 +81,66 @@ if (!empty($closeTime)) {
 // A. INCOME ENTRIES (Cash received from Sales & Customer collections)
 $incomeEntries = [];
 
-// Cash Sales in this shift
-$stSales = $pdo->prepare("
-    SELECT id, invoice_no, paid_amount, payment_method, sale_date, sale_time, customer_name_custom
+// 1. Point-of-Sale Counter Cash Receipts (vouchers generated at time of sale)
+$stCounterSales = $pdo->prepare("
+    SELECT v.id AS voucher_id, v.voucher_no, v.amount, v.payment_mode,
+           s.id AS sale_id, s.invoice_no, s.customer_name_custom, p.name AS customer_name,
+           fa.account_name, fa.account_type
+    FROM vouchers v
+    JOIN financial_accounts fa ON v.account_id = fa.id
+    LEFT JOIN journal_entries j ON v.journal_id = j.id
+    LEFT JOIN sales s ON (j.source_type = 'sale' AND j.source_id = s.id)
+    LEFT JOIN parties p ON v.party_id = p.id
+    WHERE v.created_at >= ? AND v.created_at <= ?
+      AND v.voucher_type = 'RV'
+      AND v.status = 'posted'
+      AND (j.source_type = 'sale' OR v.narration LIKE 'Sale Bill #% collection')
+    ORDER BY v.id ASC
+");
+$stCounterSales->execute([$shiftStart, $shiftEnd]);
+$seenSaleIds = [];
+while ($cs = $stCounterSales->fetch()) {
+    if (!empty($cs['sale_id'])) {
+        $seenSaleIds[] = (int)$cs['sale_id'];
+    }
+    $refNo = !empty($cs['invoice_no']) ? $cs['invoice_no'] : $cs['voucher_no'];
+    $url = !empty($cs['sale_id']) ? ('print_bill.php?id=' . $cs['sale_id']) : 'bills.php';
+    $custLabel = !empty($cs['customer_name_custom']) ? $cs['customer_name_custom'] : ($cs['customer_name'] ?? 'Walk-in Customer');
+    $modeTag = ($cs['account_type'] === 'Bank') ? ('Bank: ' . $cs['account_name']) : 'Cash';
+    $incomeEntries[] = [
+        'ref'     => $refNo,
+        'amount'  => (float)$cs['amount'],
+        'url'     => $url,
+        'label'   => 'Cash Sale (' . $modeTag . ')',
+        'sub'     => $custLabel
+    ];
+}
+
+// Fallback for legacy sales created in this shift that had paid_amount > 0 but no voucher
+$stLegacySales = $pdo->prepare("
+    SELECT id, invoice_no, paid_amount, payment_method, customer_name_custom
     FROM sales
-    WHERE created_at >= ? AND created_at <= ? AND status = 'posted' AND payment_method = 'Cash' AND paid_amount > 0
+    WHERE created_at >= ? AND created_at <= ? 
+      AND status = 'posted' 
+      AND paid_amount > 0
     ORDER BY id ASC
 ");
-$stSales->execute([$shiftStart, $shiftEnd]);
-while ($s = $stSales->fetch()) {
-    $incomeEntries[] = [
-        'ref'     => $s['invoice_no'],
-        'amount'  => (float)$s['paid_amount'],
-        'url'     => 'print_bill.php?id=' . $s['id'],
-        'label'   => 'Cash Sale',
-        'sub'     => $s['customer_name_custom'] ?? ''
-    ];
+$stLegacySales->execute([$shiftStart, $shiftEnd]);
+while ($ls = $stLegacySales->fetch()) {
+    if (!in_array((int)$ls['id'], $seenSaleIds, true)) {
+        // Double check if any voucher exists referencing this invoice
+        $chk = $pdo->prepare("SELECT COUNT(*) FROM vouchers WHERE narration LIKE ?");
+        $chk->execute(['%' . $ls['invoice_no'] . '%']);
+        if ((int)$chk->fetchColumn() === 0) {
+            $incomeEntries[] = [
+                'ref'     => $ls['invoice_no'],
+                'amount'  => (float)$ls['paid_amount'],
+                'url'     => 'print_bill.php?id=' . $ls['id'],
+                'label'   => 'Cash Sale',
+                'sub'     => $ls['customer_name_custom'] ?? ''
+            ];
+        }
+    }
 }
 
 // Standalone Customer Recovery Vouchers (RV) in this shift (Cash & Online/Bank)
