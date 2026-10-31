@@ -22,6 +22,7 @@ $errors = [];
 
 // Handle POST Journal Entry
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_jv') {
+    requireActiveShift($db, false);
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {

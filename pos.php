@@ -37,6 +37,7 @@ $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, s
 $customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 $companySettings = getCompanySettings();
+$activeShift = getActiveShift($db);
 $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 ?>
 
@@ -74,6 +75,18 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     <small class="text-secondary">Saving changes will safely reverse the previous inventory and accounting postings, then apply the updated bill atomically.</small>
   </div>
   <a href="bills.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i> Cancel &amp; Back to Bills</a>
+</div>
+<?php endif; ?>
+<?php if (!$activeShift): ?>
+<div class="alert alert-danger py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #dc3545;">
+  <div class="d-flex align-items-center gap-3">
+    <i class="fa-solid fa-lock text-danger fs-1"></i>
+    <div>
+      <h5 class="fw-bold mb-1 text-dark">Shift Closed / Not Started (شفٹ بند ہے / شروع نہیں کی گئی)</h5>
+      <div class="text-secondary small">کوئی بھی سیل بل یا ادائیگی درج کرنے سے پہلے روزانہ کیش شفٹ اوپن کرنا لازمی ہے۔ بغیر شفٹ شروع کیے ٹرانزیکشن کی اجازت نہیں ہے۔</div>
+    </div>
+  </div>
+  <a href="closing.php" class="btn btn-danger fw-bold px-3 py-2"><i class="fa-solid fa-door-open me-1"></i> Open Day Shift (روزانہ شفٹ شروع کریں)</a>
 </div>
 <?php endif; ?>
 <div id="posAlertArea"></div>
@@ -286,7 +299,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <!-- Submit Button -->
-      <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()">
+      <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()" <?= !$activeShift ? 'disabled title="Please open day shift first in Daily Closing"' : '' ?>>
         <?php if ($editSale): ?>
           <i class="fa-solid fa-pen-to-square me-2"></i> Update Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (بل اپڈیٹ کریں)
         <?php else: ?>

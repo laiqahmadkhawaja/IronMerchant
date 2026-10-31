@@ -139,6 +139,7 @@ if ($action === 'get') {
 
 if ($action === 'create') {
     requirePermission('pos');
+    requireActiveShift($db, true);
 
     $customerId = (int)($_POST['customer_id'] ?? 1);
     $itemsJson = $_POST['items'] ?? '[]';
@@ -478,6 +479,7 @@ if ($action === 'create') {
 
 if ($action === 'update') {
     requirePermission('bills');
+    requireActiveShift($db, true);
 
     $saleId = (int)($_POST['edit_sale_id'] ?? 0);
     if ($saleId <= 0) {

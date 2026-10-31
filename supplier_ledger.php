@@ -38,6 +38,7 @@ if (!$supplier) {
 
 // Handle Disburse Payment (Payment Voucher PV)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'disburse_payment') {
+    requireActiveShift($db, false);
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {

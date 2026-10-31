@@ -38,6 +38,7 @@ if (!$customer) {
 
 // Handle Receive Payment (Receipt Voucher RV)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'receive_payment') {
+    requireActiveShift($db, false);
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {

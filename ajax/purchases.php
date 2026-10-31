@@ -118,6 +118,7 @@ if ($action === 'get') {
 
 if ($action === 'create') {
     requirePermission('purchases');
+    requireActiveShift($db, true);
 
     $supplierId = (int)($_POST['supplier_id'] ?? 0);
     $purchaseDate = trim((string)($_POST['purchase_date'] ?? date('Y-m-d')));
@@ -404,6 +405,7 @@ if ($action === 'create') {
 
 if ($action === 'update') {
     requirePermission('purchases');
+    requireActiveShift($db, true);
 
     $purchaseId = (int)($_POST['edit_purchase_id'] ?? 0);
     if ($purchaseId <= 0) {

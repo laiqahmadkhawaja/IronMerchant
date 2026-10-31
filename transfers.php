@@ -24,6 +24,7 @@ $preFromId = (int)($_GET['from_id'] ?? 0);
 
 // Handle POST Transfer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_transfer') {
+    requireActiveShift($db, false);
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {

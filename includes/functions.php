@@ -146,6 +146,53 @@ function generateDocumentNumber(string $prefix, string $table, string $column): 
     return getNextDocNo($prefix, $table, $column);
 }
 
+/**
+ * Check if there is an active open shift in daily_closings.
+ * Returns shift array if open, or null if no shift is currently open.
+ */
+function getActiveShift(?PDO $db = null): ?array {
+    $db = $db ?? getDB();
+    try {
+        $stmt = $db->query("
+            SELECT dc.*, u.name AS user_name, op.name AS opener_name 
+            FROM daily_closings dc 
+            LEFT JOIN users u ON dc.user_id = u.id 
+            LEFT JOIN users op ON dc.opened_by = op.id 
+            WHERE dc.status = 'open' 
+            ORDER BY dc.id DESC LIMIT 1
+        ");
+        $shift = $stmt->fetch();
+        return $shift ?: null;
+    } catch (Throwable $t) {
+        return null;
+    }
+}
+
+/**
+ * Enforce that an active shift must be open before any transactions can proceed.
+ * If called in an AJAX/JSON context, responds with JSON error.
+ * If called in a page context, redirects to closing.php with a warning flash message.
+ */
+function requireActiveShift(?PDO $db = null, bool $isJson = true): array {
+    $shift = getActiveShift($db);
+    if (!$shift) {
+        $msg = "براہ کرم پہلے روزانہ شفٹ اوپن کریں۔ بغیر شفٹ شروع کیے کوئی بھی ٹرانزیکشن نہیں کی جا سکتی۔ (No transaction can be performed without an active day shift. Please open a shift first in Daily Closing).";
+        if ($isJson) {
+            if (function_exists('jsonError')) {
+                jsonError($msg, ['code' => 'SHIFT_REQUIRED', 'redirect' => 'closing.php']);
+            } else {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => $msg, 'code' => 'SHIFT_REQUIRED']);
+                exit;
+            }
+        }
+        setFlash('warning', $msg);
+        header('Location: closing.php');
+        exit;
+    }
+    return $shift;
+}
+
 function setFlash(string $type, string $message): void {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();

@@ -45,6 +45,7 @@ $db = getDB();
 $suppliers = $db->query("SELECT id, name, current_balance FROM parties WHERE type = 'supplier' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $items = $db->query("SELECT id, name, unit, cost_price FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
+$activeShift = getActiveShift($db);
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -67,6 +68,18 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 </div>
 <?php endif; ?>
 
+<?php if (!$activeShift): ?>
+<div class="alert alert-danger py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #dc3545;">
+  <div class="d-flex align-items-center gap-3">
+    <i class="fa-solid fa-lock text-danger fs-1"></i>
+    <div>
+      <h5 class="fw-bold mb-1 text-dark">Shift Closed / Not Started (شفٹ بند ہے / شروع نہیں کی گئی)</h5>
+      <div class="text-secondary small">کوئی بھی خریداری یا ادائیگی درج کرنے سے پہلے روزانہ کیش شفٹ اوپن کرنا لازمی ہے۔ بغیر شفٹ شروع کیے ٹرانزیکشن کی اجازت نہیں ہے۔</div>
+    </div>
+  </div>
+  <a href="closing.php" class="btn btn-danger fw-bold px-3 py-2"><i class="fa-solid fa-door-open me-1"></i> Open Day Shift (روزانہ شفٹ شروع کریں)</a>
+</div>
+<?php endif; ?>
 <div class="zb-card mb-4">
   <div class="row g-3 mb-3">
     <div class="col-12 col-md-5">
@@ -238,7 +251,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 
   <div class="d-flex justify-content-end gap-2">
     <a href="purchases.php" class="btn btn-outline-secondary px-4">Cancel</a>
-    <button type="button" class="btn btn-zb-primary px-4 py-2 fs-5 fw-bold" id="btnSavePurchase" onclick="submitPurchaseForm()">
+    <button type="button" class="btn btn-zb-primary px-4 py-2 fs-5 fw-bold" id="btnSavePurchase" onclick="submitPurchaseForm()" <?= !$activeShift ? 'disabled title="Please open day shift first in Daily Closing"' : '' ?>>
       <i class="fa-solid fa-floppy-disk me-1"></i> Save Purchase &amp; Landed Cost (خریداری محفوظ کریں)
     </button>
   </div>

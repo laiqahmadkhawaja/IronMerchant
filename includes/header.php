@@ -77,9 +77,17 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
             <span class="user-role"><?= htmlspecialchars($role) ?></span>
           </div>
           <button type="button" class="btn btn-sm p-1 ms-1 border-0" onclick="openSelfPinModal()" title="Reset My PIN (اپنا پن تبدیل کریں)" style="background: rgba(0,0,0,0.06); border-radius: 6px; font-size: 11px; height: 26px; line-height: 1; color: var(--nv); font-weight: 600;">
-            <i class="fa-solid fa-key text-warning me-1"></i> PIN
+            <i class="fa-solid fa-key text-warning me-1"></i> <span class="text-light">PIN</span>
           </button>
         </div>
+
+        <?php
+          $shiftHeader = function_exists('getActiveShift') ? getActiveShift() : null;
+        ?>
+        <a href="closing.php" class="text-decoration-none d-none d-lg-flex align-items-center gap-2 px-3 py-1 rounded-pill shadow-sm border <?= $shiftHeader ? 'bg-success text-white border-success' : 'bg-danger text-white border-danger' ?>" style="font-size: 11.5px; font-weight: 700; height: 32px;" title="<?= $shiftHeader ? 'Active Day Shift Open' : 'Click to Open Day Shift in Closing' ?>">
+          <i class="fa-solid <?= $shiftHeader ? 'fa-circle-check' : 'fa-lock' ?>"></i>
+          <span><?= $shiftHeader ? 'Shift: ' . htmlspecialchars($shiftHeader['closing_no']) : 'Shift Closed (شفٹ بند ہے)' ?></span>
+        </a>
 
         <div class="header-clock-card" id="liveClockCard">
           <div class="clock-icon">

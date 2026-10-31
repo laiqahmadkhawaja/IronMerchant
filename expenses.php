@@ -53,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 // Handle New Expense Entry
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_expense') {
+    requireActiveShift($pdo, false);
     if (!validateCSRF($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token.';
     } else {
@@ -203,7 +204,22 @@ $topCat = !empty($catTotals) ? key($catTotals) . ' (' . formatCurrency(current($
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <?php
+$activeShift = getActiveShift($pdo);
+?>
+<?php if (!$activeShift): ?>
+<div class="alert alert-danger py-3 px-4 mb-4 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #dc3545;">
+  <div class="d-flex align-items-center gap-3">
+    <i class="fa-solid fa-lock text-danger fs-1"></i>
+    <div>
+      <h5 class="fw-bold mb-1 text-dark">Shift Closed / Not Started (شفٹ بند ہے / شروع نہیں کی گئی)</h5>
+      <div class="text-secondary small">کوئی بھی نیا خرچہ یا ادائیگی درج کرنے سے پہلے روزانہ کیش شفٹ اوپن کرنا لازمی ہے۔ بغیر شفٹ شروع کیے ٹرانزیکشن کی اجازت نہیں ہے۔</div>
+    </div>
+  </div>
+  <a href="closing.php" class="btn btn-danger fw-bold px-3 py-2"><i class="fa-solid fa-door-open me-1"></i> Open Day Shift (روزانہ شفٹ شروع کریں)</a>
+</div>
+<?php endif; ?>
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
       <div>
         <h4 class="mb-1" style="font-weight: 700; color: var(--nv);">Operating Expenses & Vouchers (کاروباری اخراجات)</h4>
         <span class="text-muted" style="font-size: 13px;">Yard rent, electricity, loading labour, vehicle fuel, and daily office expenditure</span>
