@@ -106,6 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'disbu
                 $insV->execute([$voucherNo, $vDate, $suppId, $accountId, $amount, $paymentMode, $chequeNo, $narration, $journalId, $currentUser['id'] ?? null]);
                 $vId = (int)$pdo->lastInsertId();
 
+                // Settle open purchase bills for this supplier (FIFO)
+                $remPay = (float)$amount;
+                $stOpenPur = $pdo->prepare("SELECT id, grand_total, paid_amount, due_amount FROM purchases WHERE supplier_id = ? AND status = 'posted' AND due_amount > 0 ORDER BY purchase_date ASC, id ASC FOR UPDATE");
+                $stOpenPur->execute([$suppId]);
+                $openPurchases = $stOpenPur->fetchAll();
+
+                $stUpdPur = $pdo->prepare("UPDATE purchases SET paid_amount = ?, due_amount = ?, payment_status = ? WHERE id = ?");
+                foreach ($openPurchases as $pur) {
+                    if ($remPay <= 0) break;
+                    $due = (float)$pur['due_amount'];
+                    $alloc = min($remPay, $due);
+                    $newPaid = (float)$pur['paid_amount'] + $alloc;
+                    $newDue = max(0.0, $due - $alloc);
+                    $newStatus = ($newDue <= 0.009) ? 'Paid' : 'Partial';
+                    $stUpdPur->execute([$newPaid, $newDue, $newStatus, $pur['id']]);
+                    $remPay -= $alloc;
+                }
+
                 $pdo->commit();
                 logAudit('create', 'vouchers', $vId, "Recorded payment disbursement $voucherNo of Rs $amount to supplier {$sLock['name']}");
                 setFlash('success', "Payment voucher $voucherNo for Rs " . number_format($amount, 2) . " posted successfully.");

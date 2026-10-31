@@ -106,6 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'recei
                 $insV->execute([$voucherNo, $vDate, $custId, $accountId, $amount, $paymentMode, $chequeNo, $narration, $journalId, $currentUser['id'] ?? null]);
                 $vId = (int)$pdo->lastInsertId();
 
+                // Settle open sales bills for this customer (FIFO)
+                $remRec = (float)$amount;
+                $stOpenSales = $pdo->prepare("SELECT id, grand_total, paid_amount, due_amount FROM sales WHERE customer_id = ? AND status = 'posted' AND due_amount > 0 ORDER BY sale_date ASC, id ASC FOR UPDATE");
+                $stOpenSales->execute([$custId]);
+                $openSales = $stOpenSales->fetchAll();
+
+                $stUpdSale = $pdo->prepare("UPDATE sales SET paid_amount = ?, due_amount = ?, payment_status = ? WHERE id = ?");
+                foreach ($openSales as $saleRow) {
+                    if ($remRec <= 0) break;
+                    $due = (float)$saleRow['due_amount'];
+                    $alloc = min($remRec, $due);
+                    $newPaid = (float)$saleRow['paid_amount'] + $alloc;
+                    $newDue = max(0.0, $due - $alloc);
+                    $newStatus = ($newDue <= 0.009) ? 'Paid' : 'Partial';
+                    $stUpdSale->execute([$newPaid, $newDue, $newStatus, $saleRow['id']]);
+                    $remRec -= $alloc;
+                }
+
                 $pdo->commit();
                 logAudit('create', 'vouchers', $vId, "Recorded payment receipt $voucherNo of Rs $amount from customer {$cLock['name']}");
                 setFlash('success', "Payment receipt $voucherNo for Rs " . number_format($amount, 2) . " posted successfully.");
