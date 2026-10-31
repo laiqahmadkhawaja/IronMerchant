@@ -534,26 +534,48 @@ foreach ($items as $it) {
 
       <!-- Letterhead -->
       <div style="border-bottom: 3px solid #14307a; padding-bottom: 12px; margin-bottom: 14px;">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div class="d-flex align-items-center gap-3">
-            <img src="assets/images/logo.png" alt="Logo" style="width: 65px; height: 65px; object-fit: contain;">
-            <div>
-              <div class="ur" style="color: #14307a; font-size: 24px; font-weight: 700; line-height: 1.8; margin-bottom: 2px;">
-                <?= htmlspecialchars($compUrdu) ?>
-              </div>
-              <h4 class="mb-0" style="font-weight: 800; color: #14307a; letter-spacing: 0.5px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;">
+          <!-- Left: Logo & English Branding -->
+          <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1 1 auto; min-width: 0;">
+            <img src="assets/images/logo.png" alt="Logo" style="width: <?= $size === 'A5' ? '54px' : '68px' ?>; height: <?= $size === 'A5' ? '54px' : '68px' ?>; object-fit: contain; flex-shrink: 0; margin-top: 2px;">
+            <div style="min-width: 0;">
+              <h4 class="mb-0" style="font-weight: 800; color: #14307a; letter-spacing: 0.5px; font-size: <?= $size === 'A5' ? '18px' : '22px' ?>; line-height: 1.2;">
                 <?= htmlspecialchars($compName) ?>
               </h4>
-              <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 2px;">
-                Gujranwala Steel Group of Industry · Prime Re-Rolled Steel Bars, G.I Wire &amp; Structural Steel
+              <div style="font-size: <?= $size === 'A5' ? '11px' : '12px' ?>; color: #1e293b; font-weight: 700; margin-top: 3px;">
+                <?= htmlspecialchars($company['company_tagline'] ?? 'Gujranwala Steel Group of Industry') ?>
+              </div>
+              <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #64748b; font-weight: 600; margin-top: 2px;">
+                Prime Re-Rolled Steel Bars, G.I Wire &amp; Structural Steel
+              </div>
+              <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #475569; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                <i class="fa-solid fa-location-dot text-primary" style="flex-shrink: 0;"></i>
+                <span><?= htmlspecialchars($compAddress) ?></span>
               </div>
             </div>
           </div>
-          <div class="text-end" style="font-size: 11.5px; line-height: 1.6;">
-            <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compPhone) ?></strong></div>
-            <div><i class="fa-solid fa-location-dot me-1 text-primary"></i> <?= htmlspecialchars($compAddress) ?></div>
-            <div class="badge bg-primary text-uppercase mt-1" style="font-size: 10.5px; letter-spacing: 0.5px; padding: 4px 8px;">
-              Sales Invoice / بل فروخت
+
+          <!-- Right: Urdu Name, Motto, Contact & Sales Invoice Badge -->
+          <div style="flex: 0 0 auto; text-align: right; max-width: <?= $size === 'A5' ? '46%' : '44%' ?>;">
+            <div class="ur" dir="rtl" style="color: #14307a; font-size: <?= $size === 'A5' ? '22px' : '26px' ?>; font-weight: 700; line-height: 1.35; margin-bottom: 2px;">
+              <?= htmlspecialchars($compUrdu) ?>
+            </div>
+            <?php if (!empty($company['company_motto_urdu'])): ?>
+              <div class="ur text-muted" dir="rtl" style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; line-height: 1.4; margin-bottom: 3px;">
+                <?= htmlspecialchars($company['company_motto_urdu']) ?>
+              </div>
+            <?php endif; ?>
+            <div style="font-size: <?= $size === 'A5' ? '10.5px' : '11.5px' ?>; line-height: 1.5; color: #1e293b; margin-top: 3px;">
+              <i class="fa-solid fa-phone text-primary me-1"></i>
+              <strong><?= htmlspecialchars($compPhone) ?></strong>
+              <?php if (!empty($company['company_landline'])): ?>
+                <span class="text-muted d-block d-sm-inline" style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>;">· <?= htmlspecialchars($company['company_landline']) ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="mt-2">
+              <span class="badge bg-primary text-uppercase" style="font-size: <?= $size === 'A5' ? '9.5px' : '10.5px' ?>; letter-spacing: 0.5px; padding: 4px 9px; font-weight: 700; box-shadow: 0 1px 3px rgba(20,48,122,0.25);">
+                <i class="fa-solid fa-file-invoice me-1"></i> Sales Invoice / بل فروخت
+              </span>
             </div>
           </div>
         </div>
