@@ -367,7 +367,7 @@ $shiftStart = $targetDate . ' 00:00:00';
 $shiftEnd   = date('Y-m-d 23:59:59');
 
 if ($activeShift) {
-    // If there is an active shift, scope to its opening time or after prior shift closing
+    // If there is an active shift, scope to immediately after prior shift closing (gapless)
     $stPriorShift = $pdo->prepare("
         SELECT closing_date, closing_time, created_at 
         FROM daily_closings 
@@ -382,16 +382,6 @@ if ($activeShift) {
         $priorEndTs = $priorShift['closing_date'] . ' ' . $priorShift['closing_time'];
         if ($priorEndTs > $shiftStart) {
             $shiftStart = $priorEndTs;
-        }
-    }
-    if (!empty($activeShift['opening_time'])) {
-        $openTs = ($activeShift['closing_date'] ?? $targetDate) . ' ' . $activeShift['opening_time'];
-        if ($openTs > $shiftStart) {
-            $shiftStart = $openTs;
-        }
-    } elseif (!empty($activeShift['created_at'])) {
-        if ($activeShift['created_at'] > $shiftStart) {
-            $shiftStart = $activeShift['created_at'];
         }
     }
 }
@@ -451,6 +441,50 @@ $stEV = $pdo->prepare("
 $stEV->execute([$shiftStart, $shiftEnd]);
 $liveCashExpenses = (float)$stEV->fetchColumn();
 
+// 5. Inter-Account Transfers in shift window
+// Cash deposited into Bank (Cash Outflow from Drawer)
+$stTrfOut = $pdo->prepare("
+    SELECT COALESCE(SUM(t.amount), 0)
+    FROM inter_account_transfers t
+    JOIN financial_accounts faFrom ON t.from_account_id = faFrom.id
+    JOIN financial_accounts faTo ON t.to_account_id = faTo.id
+    WHERE t.created_at >= ? AND t.created_at <= ?
+      AND faFrom.account_type = 'Cash' AND faTo.account_type != 'Cash'
+      AND t.status = 'posted'
+");
+$stTrfOut->execute([$shiftStart, $shiftEnd]);
+$liveTransfersOut = (float)$stTrfOut->fetchColumn();
+
+// Bank drawn into Cash (Cash Inflow to Drawer)
+$stTrfIn = $pdo->prepare("
+    SELECT COALESCE(SUM(t.amount), 0)
+    FROM inter_account_transfers t
+    JOIN financial_accounts faFrom ON t.from_account_id = faFrom.id
+    JOIN financial_accounts faTo ON t.to_account_id = faTo.id
+    WHERE t.created_at >= ? AND t.created_at <= ?
+      AND faFrom.account_type != 'Cash' AND faTo.account_type = 'Cash'
+      AND t.status = 'posted'
+");
+$stTrfIn->execute([$shiftStart, $shiftEnd]);
+$liveTransfersIn = (float)$stTrfIn->fetchColumn();
+
+// 6. Bank / Online Collections in shift window (non-cash receipts for visibility)
+$stBankRV = $pdo->prepare("
+    SELECT v.voucher_no, COALESCE(p.name, 'Customer') AS customer_name, fa.account_name, v.amount, v.payment_mode, v.created_at
+    FROM vouchers v
+    JOIN financial_accounts fa ON v.account_id = fa.id
+    LEFT JOIN parties p ON v.party_id = p.id
+    WHERE v.created_at >= ? AND v.created_at <= ?
+      AND v.voucher_type = 'RV' 
+      AND fa.account_type = 'Bank' 
+      AND v.status = 'posted'
+      AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
+    ORDER BY v.id ASC
+");
+$stBankRV->execute([$shiftStart, $shiftEnd]);
+$bankReceiptsList = $stBankRV->fetchAll();
+$liveBankCustCollections = array_sum(array_column($bankReceiptsList, 'amount'));
+
 // 5. Opening Cash
 if ($activeShift) {
     $liveOpeningCash = (float)$activeShift['opening_cash'];
@@ -473,8 +507,8 @@ if ($activeShift) {
     $liveOpeningBank = (float)$stB->fetchColumn();
 }
 
-// 6. Expected Cash Calculation
-$liveExpectedCash = round($liveOpeningCash + $liveCashSales + $liveCustCollections - $liveSuppPayments - $liveCashExpenses, 2);
+// 6. Expected Cash Calculation (reflecting cash inflows, outflows, and bank transfers)
+$liveExpectedCash = round($liveOpeningCash + $liveCashSales + $liveCustCollections + $liveTransfersIn - $liveSuppPayments - $liveCashExpenses - $liveTransfersOut, 2);
 
 // Recent shifts / closings history
 $pastClosings = $pdo->query("
@@ -649,36 +683,54 @@ require_once __DIR__ . '/includes/header.php';
         <input type="hidden" name="expected_cash" id="inpExpectedCash" value="<?= $liveExpectedCash ?>">
 
         <!-- Live Shift Metric Cards -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-3">
           <div class="col-12 col-md-3">
-            <div class="p-3 border rounded bg-light">
+            <div class="p-3 border rounded bg-light h-100">
               <span class="text-muted" style="font-size: 12px; display: block;">1. Shift Opening Cash Float:</span>
               <div style="font-size: 18px; font-weight: 700; color: #334155;"><?= formatCurrency($liveOpeningCash) ?></div>
               <small class="text-muted" style="font-size: 11px;">Fixed at shift start</small>
             </div>
           </div>
           <div class="col-12 col-md-3">
-            <div class="p-3 border rounded bg-light">
+            <div class="p-3 border rounded bg-light h-100">
               <span class="text-muted" style="font-size: 12px; display: block;">2. Cash Inflows (آمدن):</span>
-              <div style="font-size: 18px; font-weight: 700; color: var(--gn);">+ <?= formatCurrency($liveCashSales + $liveCustCollections) ?></div>
-              <small class="text-muted" style="font-size: 11px;">Counter: <?= formatCurrency($liveCashSales) ?> | RV: <?= formatCurrency($liveCustCollections) ?></small>
+              <div style="font-size: 18px; font-weight: 700; color: var(--gn);">+ <?= formatCurrency($liveCashSales + $liveCustCollections + $liveTransfersIn) ?></div>
+              <small class="text-muted" style="font-size: 11px;">Counter: <?= formatCurrency($liveCashSales) ?> | RV: <?= formatCurrency($liveCustCollections) ?><?= $liveTransfersIn > 0 ? ' | Bank In: ' . formatCurrency($liveTransfersIn) : '' ?></small>
             </div>
           </div>
           <div class="col-12 col-md-3">
-            <div class="p-3 border rounded bg-light">
+            <div class="p-3 border rounded bg-light h-100">
               <span class="text-muted" style="font-size: 12px; display: block;">3. Cash Outflows (ادائیگیاں):</span>
-              <div style="font-size: 18px; font-weight: 700; color: var(--rd);">- <?= formatCurrency($liveSuppPayments + $liveCashExpenses) ?></div>
-              <small class="text-muted" style="font-size: 11px;">Expenses: <?= formatCurrency($liveCashExpenses) ?> | Suppliers: <?= formatCurrency($liveSuppPayments) ?></small>
+              <div style="font-size: 18px; font-weight: 700; color: var(--rd);">- <?= formatCurrency($liveSuppPayments + $liveCashExpenses + $liveTransfersOut) ?></div>
+              <small class="text-muted" style="font-size: 11px;">Expenses: <?= formatCurrency($liveCashExpenses) ?> | Suppliers: <?= formatCurrency($liveSuppPayments) ?><?= $liveTransfersOut > 0 ? ' | Bank Drop: ' . formatCurrency($liveTransfersOut) : '' ?></small>
             </div>
           </div>
           <div class="col-12 col-md-3">
-            <div class="p-3 border rounded" style="background: #eff6ff; border-color: #bfdbfe !important;">
+            <div class="p-3 border rounded h-100" style="background: #eff6ff; border-color: #bfdbfe !important;">
               <span style="font-size: 12px; font-weight: 600; color: var(--nv); display: block;">4. Expected Safe Cash:</span>
               <div style="font-size: 20px; font-weight: 800; color: var(--nv);"><?= formatCurrency($liveExpectedCash) ?></div>
               <small class="text-muted" style="font-size: 11px;">Opening + Inflows − Outflows</small>
             </div>
           </div>
         </div>
+
+        <?php if (!empty($bankReceiptsList) || $liveBankSales > 0): ?>
+          <div class="alert alert-info py-2 px-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 12.5px;">
+            <div>
+              <i class="fa-solid fa-building-columns text-primary me-2"></i>
+              <strong>Bank &amp; Online Receipts in Shift / Session (بینک و آن لائن وصولیاں):</strong>
+              <span class="badge bg-primary text-white ms-1"><?= formatCurrency($liveBankCustCollections + $liveBankSales) ?></span>
+              <span class="text-muted ms-2">(Received directly in bank account, separate from physical drawer cash)</span>
+            </div>
+            <div class="d-flex flex-wrap gap-1">
+              <?php foreach ($bankReceiptsList as $br): ?>
+                <span class="badge bg-white text-dark border">
+                  <?= htmlspecialchars($br['voucher_no']) ?>: <?= formatCurrency((float)$br['amount']) ?> (<?= htmlspecialchars($br['customer_name']) ?> &rarr; <?= htmlspecialchars($br['account_name']) ?>)
+                </span>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endif; ?>
 
         <!-- Physical Cash Denomination Counter -->
         <h6 class="mb-3" style="font-weight: 700; color: var(--nv);">

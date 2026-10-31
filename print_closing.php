@@ -71,16 +71,6 @@ if ($priorShift && !empty($priorShift['closing_time'])) {
         $shiftStart = $priorEndTs;
     }
 }
-if (!empty($openTime)) {
-    $openTs = $closingDate . ' ' . $openTime;
-    if ($openTs > $shiftStart) {
-        $shiftStart = $openTs;
-    }
-} elseif (!empty($closing['created_at'])) {
-    if ($closing['created_at'] > $shiftStart) {
-        $shiftStart = $closing['created_at'];
-    }
-}
 
 if (!empty($closeTime)) {
     $shiftEnd = $closingDate . ' ' . $closeTime;
@@ -109,27 +99,27 @@ while ($s = $stSales->fetch()) {
     ];
 }
 
-// Standalone Customer Cash Recovery Vouchers (RV) in this shift
+// Standalone Customer Recovery Vouchers (RV) in this shift (Cash & Online/Bank)
 $stRV = $pdo->prepare("
-    SELECT v.id, v.voucher_no, v.amount, p.name AS party_name, v.party_id
+    SELECT v.id, v.voucher_no, v.amount, p.name AS party_name, v.party_id, fa.account_name, fa.account_type, v.payment_mode
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
     LEFT JOIN parties p ON v.party_id = p.id
     WHERE v.created_at >= ? AND v.created_at <= ?
       AND v.voucher_type = 'RV' 
-      AND fa.account_type = 'Cash' 
       AND v.status = 'posted'
       AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
     ORDER BY v.id ASC
 ");
 $stRV->execute([$shiftStart, $shiftEnd]);
 while ($rv = $stRV->fetch()) {
+    $modeTag = ($rv['account_type'] === 'Bank') ? ('Bank: ' . $rv['account_name']) : 'Cash';
     $incomeEntries[] = [
         'ref'     => $rv['voucher_no'],
         'amount'  => (float)$rv['amount'],
         'url'     => 'customer_ledger.php?id=' . (int)$rv['party_id'],
-        'label'   => 'Customer Collection: ' . ($rv['party_name'] ?? 'Walk-in'),
-        'sub'     => $rv['party_name'] ?? ''
+        'label'   => 'Customer Collection: ' . ($rv['party_name'] ?? 'Party') . ' (' . $modeTag . ')',
+        'sub'     => ($rv['party_name'] ?? '') . ' · ' . ($rv['payment_mode'] ?? 'Cash')
     ];
 }
 
