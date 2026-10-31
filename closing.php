@@ -99,8 +99,8 @@ function syncShiftOpeningCash(PDO $pdo, float $openingCash, string $closingNo, ?
 
     // If initial shift float (no prior finalized closings and opening balance is 0.00):
     if ($priorFinalized === 0 && (float)$cashAcct['opening_balance'] == 0.0) {
-        $pdo->prepare("UPDATE financial_accounts SET opening_balance = ?, current_balance = current_balance + ? WHERE id = ?")
-            ->execute([$openingCash, $openingCash, $cashAcct['id']]);
+        $pdo->prepare("UPDATE financial_accounts SET opening_balance = ? WHERE id = ?")
+            ->execute([$openingCash, $cashAcct['id']]);
 
         $jLines = [
             [
