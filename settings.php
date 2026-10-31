@@ -33,9 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'company_motto_urdu'   => (!empty($_POST['company_motto_urdu']) && strpos($_POST['company_motto_urdu'], '?') === false) ? trim($_POST['company_motto_urdu']) : 'آپ کے اعتماد کا شکریہ — معیاری سریا، ایماندار وزن، بھروسے کا نام',
                 'company_address'      => trim($_POST['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala'),
                 'company_phone'        => trim($_POST['company_phone'] ?? '0300-9641483 · 0300-7499499'),
-                'company_landline'     => trim($_POST['company_landline'] ?? '055-4213194'),
-                'receipt_default_size' => trim($_POST['receipt_default_size'] ?? 'thermal'),
-                'low_stock_alert'      => trim($_POST['low_stock_alert'] ?? '5000')
+                'company_landline'           => trim($_POST['company_landline'] ?? '055-4213194'),
+                'receipt_default_size'       => trim($_POST['receipt_default_size'] ?? 'thermal'),
+                'low_stock_alert'            => trim($_POST['low_stock_alert'] ?? '5000'),
+                'bill_terms_title_urdu'      => (!empty($_POST['bill_terms_title_urdu']) && strpos($_POST['bill_terms_title_urdu'], '?') === false) ? trim($_POST['bill_terms_title_urdu']) : 'شرائط و ضوابط برائے خریدار:',
+                'bill_terms_conditions_urdu' => (!empty($_POST['bill_terms_conditions_urdu']) && strpos($_POST['bill_terms_conditions_urdu'], '?') === false) ? trim($_POST['bill_terms_conditions_urdu']) : "مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔\nخریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔",
+                'bill_terms_conditions_en'   => trim($_POST['bill_terms_conditions_en'] ?? 'Goods once sold and loaded cannot be returned or exchanged.')
             ];
 
             try {
@@ -297,6 +300,43 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-12 col-md-6">
               <label class="form-label">Global Low Stock Warning Level (kg)</label>
               <input type="number" name="low_stock_alert" class="form-control" value="<?= htmlspecialchars($currentSettings['low_stock_alert'] ?? '5000') ?>">
+            </div>
+
+            <!-- Bill Print Terms & Conditions (شرائط و ضوابط) Section -->
+            <div class="col-12 mt-4 pt-3 border-top">
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <div>
+                  <h6 class="mb-0" style="font-weight: 700; color: #14307a;">
+                    <i class="fa-solid fa-file-contract me-2 text-primary"></i> Invoice Terms &amp; Conditions (بل کے شرائط و ضوابط برائے خریدار)
+                  </h6>
+                  <span class="text-muted" style="font-size: 12.5px;">These conditions are automatically synchronized across all bill formats: A4 Full Sheet, A5 Half Sheet, Thermal 80mm &amp; 58mm.</span>
+                </div>
+                <span class="badge bg-light text-primary border" style="font-size: 11.5px;">
+                  <i class="fa-solid fa-arrows-rotate me-1"></i> Synced Across All Formats
+                </span>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">Terms Box Header (عنوان شرائط و ضوابط)</label>
+              <input type="text" name="bill_terms_title_urdu" class="form-control ur text-end" dir="rtl" style="font-size: 15px;" 
+                     value="<?= htmlspecialchars($currentSettings['bill_terms_title_urdu'] ?? 'شرائط و ضوابط برائے خریدار:') ?>" 
+                     placeholder="شرائط و ضوابط برائے خریدار:">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">English Return / Policy Note (انگریزی پالیسی نوٹ)</label>
+              <input type="text" name="bill_terms_conditions_en" class="form-control" style="font-size: 13px;"
+                     value="<?= htmlspecialchars($currentSettings['bill_terms_conditions_en'] ?? 'Goods once sold and loaded cannot be returned or exchanged.') ?>" 
+                     placeholder="Goods once sold and loaded cannot be returned or exchanged.">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Urdu Terms &amp; Rules (شرائط برائے خریدار — ہر نئی لائن الگ شرط ہو گی)</label>
+              <textarea name="bill_terms_conditions_urdu" class="form-control ur text-end" dir="rtl" rows="3" style="font-size: 14.5px; line-height: 1.8;"><?= htmlspecialchars($currentSettings['bill_terms_conditions_urdu'] ?? "مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔\nخریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔") ?></textarea>
+              <div class="form-text text-muted" style="font-size: 12px;">
+                <i class="fa-solid fa-circle-info text-primary me-1"></i> ہر نئی لائن بل پر خود بخود الگ نمبر وار شرط کے طور پر چھپے گی۔ (Each line becomes a numbered condition on A4/A5 and printed note on thermal).
+              </div>
             </div>
 
             <div class="col-12 text-end mt-4">

@@ -68,6 +68,12 @@ $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu']
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
+// Terms & Conditions (Synchronized across all bill formats from Settings)
+$termsTitle = !empty($company['bill_terms_title_urdu']) ? $company['bill_terms_title_urdu'] : 'شرائط و ضوابط برائے خریدار:';
+$termsUrduRaw = !empty($company['bill_terms_conditions_urdu']) ? $company['bill_terms_conditions_urdu'] : "مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔\nخریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔";
+$termsUrduLines = array_values(array_filter(array_map('trim', explode("\n", $termsUrduRaw))));
+$termsEn = trim($company['bill_terms_conditions_en'] ?? 'Goods once sold and loaded cannot be returned or exchanged.');
+
 $size = trim((string)($_GET['size'] ?? ''));
 if ($size === '') {
     $defaultFormat = $company['receipt_default_size'] ?? 'A4';
@@ -500,14 +506,20 @@ foreach ($items as $it) {
 
       <div class="th-line"></div>
 
-      <!-- Footer Message -->
+      <!-- Footer Message & Synchronized Terms -->
       <div class="th-center" style="margin-top: 6px;">
-        <div class="ur th-footer">
-          مال تول کر پورا وصول پایا گیا۔
-        </div>
-        <div class="ur th-footer" style="margin-bottom: 3px;">
-          خریدا ہوا مال واپس یا تبدیل نہیں ہوگا۔
-        </div>
+        <?php if (!empty($termsUrduLines)): ?>
+          <?php foreach ($termsUrduLines as $line): ?>
+            <div class="ur th-footer" style="margin-bottom: 2px;">
+              <?= htmlspecialchars($line) ?>
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+        <?php if (!empty($termsEn)): ?>
+          <div class="th-footer" style="font-size: 8.5px; margin-top: 2px; color: #222;">
+            <?= htmlspecialchars($termsEn) ?>
+          </div>
+        <?php endif; ?>
         <div class="th-footer" style="margin-top: 4px;">
           *** THANK YOU FOR YOUR BUSINESS ***
         </div>
@@ -672,16 +684,23 @@ foreach ($items as $it) {
         <!-- Terms and Notes -->
         <div class="col-<?= $size === 'A5' ? '6' : '7' ?>">
           <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; background: #fafafa;">
-            <div class="ur" dir="rtl" style="color: #14307a; font-weight: 700; font-size: 13px; line-height: 1.6; margin-bottom: 2px;">
-              شرائط و ضوابط برائے خریدار:
-            </div>
-            <ol class="ur mb-1" dir="rtl" style="font-size: 11px; padding-right: 16px; color: #334155; line-height: 1.9;">
-              <li>مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔</li>
-              <li>خریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔</li>
-            </ol>
-            <div style="font-size: 10px; color: #64748b;">
-              Goods once sold and loaded cannot be returned or exchanged.
-            </div>
+            <?php if (!empty($termsTitle)): ?>
+              <div class="ur" dir="rtl" style="color: #14307a; font-weight: 700; font-size: 13px; line-height: 1.6; margin-bottom: 2px;">
+                <?= htmlspecialchars($termsTitle) ?>
+              </div>
+            <?php endif; ?>
+            <?php if (!empty($termsUrduLines)): ?>
+              <ol class="ur mb-1" dir="rtl" style="font-size: 11px; padding-right: 16px; color: #334155; line-height: 1.9;">
+                <?php foreach ($termsUrduLines as $line): ?>
+                  <li><?= htmlspecialchars($line) ?></li>
+                <?php endforeach; ?>
+              </ol>
+            <?php endif; ?>
+            <?php if (!empty($termsEn)): ?>
+              <div style="font-size: 10px; color: #64748b;">
+                <?= htmlspecialchars($termsEn) ?>
+              </div>
+            <?php endif; ?>
           </div>
 
           <!-- Customer Khata Ledger Impact Box (Isolated Elements) -->

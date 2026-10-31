@@ -80,6 +80,20 @@ function getCompanySettings(): array {
             $needsDbUpdate = true;
         }
 
+        $defaultTermsTitle = 'شرائط و ضوابط برائے خریدار:';
+        $defaultTermsUrdu = "مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔\nخریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔";
+        $defaultTermsEn = 'Goods once sold and loaded cannot be returned or exchanged.';
+
+        if (empty($settings['bill_terms_title_urdu']) || strpos($settings['bill_terms_title_urdu'], '?') !== false) {
+            $settings['bill_terms_title_urdu'] = $defaultTermsTitle;
+        }
+        if (empty($settings['bill_terms_conditions_urdu']) || strpos($settings['bill_terms_conditions_urdu'], '?') !== false) {
+            $settings['bill_terms_conditions_urdu'] = $defaultTermsUrdu;
+        }
+        if (!isset($settings['bill_terms_conditions_en'])) {
+            $settings['bill_terms_conditions_en'] = $defaultTermsEn;
+        }
+
         if ($needsDbUpdate) {
             try {
                 $upd = $db->prepare("UPDATE company_settings SET setting_value = ? WHERE setting_key = ?");
