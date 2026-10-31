@@ -18,7 +18,7 @@ if ($editSaleId > 0) {
     $editSale = $st->fetch();
 
     if ($editSale) {
-        $pageTitle = 'Edit Bill #' . htmlspecialchars($editSale['invoice_no']) . ' (?? ???? ????)';
+        $pageTitle = 'Edit Bill #' . htmlspecialchars($editSale['invoice_no']) . ' (بل ایڈٹ کریں)';
         $stItems = $db->prepare("
             SELECT si.*, i.name, i.unit, i.stock_qty, i.item_code
             FROM sale_items si
@@ -70,7 +70,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 <?php if ($editSale): ?>
 <div class="alert alert-warning py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #d97706;">
   <div>
-    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (?? ???? ???)</h5>
+    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (بل ایڈٹ موڈ)</h5>
     <small class="text-secondary">Saving changes will safely reverse the previous inventory and accounting postings, then apply the updated bill atomically.</small>
   </div>
   <a href="bills.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i> Cancel &amp; Back to Bills</a>
@@ -238,11 +238,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           <div class="col-6">
             <label class="form-label">Payment Method</label>
             <select id="paymentMethod" class="form-select">
-              <option value="Cash">Cash (نقد)</option>
-              <option value="Bank">Bank Deposit</option>
-              <option value="EasyPaisa">EasyPaisa</option>
-              <option value="JazzCash">JazzCash</option>
-              <option value="Credit">Credit (ادھار کھاتہ)</option>
+              <option value="Cash" <?= ($editSale && $editSale['payment_method'] === 'Cash') ? 'selected' : '' ?>>Cash (نقد)</option>
+              <option value="Bank" <?= ($editSale && $editSale['payment_method'] === 'Bank') ? 'selected' : '' ?>>Bank Deposit</option>
+              <option value="EasyPaisa" <?= ($editSale && $editSale['payment_method'] === 'EasyPaisa') ? 'selected' : '' ?>>EasyPaisa</option>
+              <option value="JazzCash" <?= ($editSale && $editSale['payment_method'] === 'JazzCash') ? 'selected' : '' ?>>JazzCash</option>
+              <option value="Credit" <?= ($editSale && $editSale['payment_method'] === 'Credit') ? 'selected' : '' ?>>Credit (ادھار کھاتہ)</option>
             </select>
           </div>
         </div>
@@ -255,7 +255,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
                 <option value="1">Main Cash Register (Cash)</option>
               <?php else: ?>
                 <?php foreach ($accounts as $a): ?>
-                  <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
+                  <option value="<?= $a['id'] ?>" <?= ($editSale && (int)$a['id'] === (int)($editSale['payment_account_id'] ?? 0)) ? 'selected' : '' ?>><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
                 <?php endforeach; ?>
               <?php endif; ?>
             </select>
@@ -267,7 +267,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="paidAmount" class="form-control fw-bold" placeholder="Blank = Full Pay" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="paidAmount" class="form-control fw-bold" value="<?= isset($editSale) ? (float)$editSale['paid_amount'] : '' ?>" placeholder="Blank = Full Pay" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
         </div>
@@ -288,9 +288,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       <!-- Submit Button -->
       <button type="button" class="btn btn-zb-primary w-100 py-3 fs-5 fw-bold" id="btnSubmitBill" onclick="submitBill()">
         <?php if ($editSale): ?>
-          <i class="fa-solid fa-pen-to-square me-2"></i> Update Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (?? ????? ????)
+          <i class="fa-solid fa-pen-to-square me-2"></i> Update Bill #<?= htmlspecialchars($editSale['invoice_no']) ?> (بل اپڈیٹ کریں)
         <?php else: ?>
-          <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (?? ????? ????)
+          <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل اپڈیٹ کریں)
         <?php endif; ?>
         <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)
         <div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;">
@@ -304,17 +304,22 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 <script>
     const ALLOW_NEGATIVE_STOCK = <?= $allowNegativeStock ? 'true' : 'false' ?>;
   const EDIT_SALE_ID = <?= (int)($editSaleId ?: 0) ?>;
-  let cart = <?= !empty($editItems) ? json_encode(array_map(function($it) {
+  let cart = <?= !empty($editItems) ? json_encode(array_values(array_map(function($it) {
+      $rate = (float)$it['unit_rate'];
+      $qty = (float)$it['qty'];
+      $disc = (float)($it['line_discount'] ?? 0);
+      $lineTotal = (float)($it['line_total'] ?? ($qty * $rate - $disc));
       return [
           'item_id' => (int)$it['item_id'],
-          'name' => $it['name'],
-          'unit' => $it['unit'],
-          'qty' => (float)$it['qty'],
-          'rate' => (float)$it['unit_rate'],
-          'line_discount' => (float)($it['line_discount'] ?? 0),
-          'line_total' => (float)$it['line_total']
+          'name' => (string)$it['name'],
+          'unit' => (string)($it['unit'] ?? 'kg'),
+          'qty' => $qty,
+          'rate' => $rate,
+          'unit_rate' => $rate,
+          'line_discount' => $disc,
+          'line_total' => $lineTotal
       ];
-  }, $editItems)) : '[]' ?>;
+  }, $editItems)), JSON_UNESCAPED_UNICODE) : '[]' ?>;
 
   function onItemSelectChange() {
     const sel = document.getElementById('itemSelect');
@@ -427,7 +432,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
   function renderCart() {
     const tbody = document.getElementById('cartTableBody');
-    if (!cart.length) {
+    if (!cart || !cart.length) {
       tbody.innerHTML = `
         <tr id="emptyCartRow">
           <td colspan="5" class="text-center py-4 text-muted">
@@ -439,19 +444,27 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       return;
     }
 
-    tbody.innerHTML = cart.map((it, idx) => `
-      <tr>
-        <td><strong>${it.name}</strong></td>
-        <td>${it.qty.toLocaleString()} ${it.unit}</td>
-        <td>Rs ${it.unit_rate.toLocaleString()}</td>
-        <td class="text-end fw-bold">Rs ${(it.line_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-        <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCartItem(${idx})" title="Remove Item">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = cart.map((it, idx) => {
+      const name = it.name || 'Item';
+      const qty = parseFloat(it.qty) || 0;
+      const unit = it.unit || 'kg';
+      const rate = parseFloat(it.unit_rate ?? it.rate) || 0;
+      const lineTotal = parseFloat(it.line_total) || (qty * rate);
+
+      return `
+        <tr>
+          <td><strong>${name}</strong></td>
+          <td>${qty.toLocaleString()} ${unit}</td>
+          <td>Rs ${rate.toLocaleString()}</td>
+          <td class="text-end fw-bold">Rs ${lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCartItem(${idx})" title="Remove Item">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function calculateBillTotals() {

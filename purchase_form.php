@@ -22,7 +22,7 @@ if ($editPurId > 0) {
     $editPur = $st->fetch();
 
     if ($editPur) {
-        $pageTitle = 'Edit Purchase #' . htmlspecialchars($editPur['purchase_no']) . ' (??????? ???? ????)';
+        $pageTitle = 'Edit Purchase #' . htmlspecialchars($editPur['purchase_no']) . ' (خریداری ایڈٹ کریں)';
         $stItems = $db->prepare("
             SELECT pi.*, i.name, i.unit
             FROM purchase_items pi
@@ -60,7 +60,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 <?php if ($editPur): ?>
 <div class="alert alert-warning py-3 px-4 mb-3 d-flex justify-content-between align-items-center shadow-sm" style="border-radius: 10px; border-left: 6px solid #d97706;">
   <div>
-    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Purchase #<?= htmlspecialchars($editPur['purchase_no']) ?> (??????? ??? ?????? ???)</h5>
+    <h5 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Editing Purchase #<?= htmlspecialchars($editPur['purchase_no']) ?> (خریداری میں تبدیلی موڈ)</h5>
     <small class="text-secondary">Saving changes will safely reverse previous inventory &amp; ledger postings, then apply the updated purchase atomically.</small>
   </div>
   <a href="purchases.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i> Cancel &amp; Back to Purchases</a>
@@ -73,7 +73,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       <label class="form-label">Supplier / Steel Mill (سپلائر مل کا نام)</label>
       <select id="purSupplier" class="form-select">
         <?php foreach ($suppliers as $s): ?>
-          <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (Payable: <?= formatMoney($s['current_balance']) ?>)</option>
+          <option value="<?= $s['id'] ?>" <?= ($editPur && (int)$s['id'] === (int)$editPur['supplier_id']) ? 'selected' : '' ?>><?= htmlspecialchars($s['name']) ?> (Payable: <?= formatMoney($s['current_balance']) ?>)</option>
         <?php endforeach; ?>
       </select>
     </div>
@@ -204,7 +204,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <label class="form-label">Payment Source Account</label>
         <select id="purAccount" class="form-select">
           <?php foreach ($accounts as $a): ?>
-            <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
+            <option value="<?= $a['id'] ?>" <?= ($editPur && (int)$a['id'] === (int)$editPur['payment_account_id']) ? 'selected' : '' ?>><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
           <?php endforeach; ?>
         </select>
       </div>
@@ -383,22 +383,33 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     if (!purchaseItems.length) {
       itemsTbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No items added yet. Select product and click "Add Line".</td></tr>';
     } else {
-      itemsTbody.innerHTML = purchaseItems.map((it, idx) => `
+      itemsTbody.innerHTML = purchaseItems.map((it, idx) => {
+        const name = it.name || 'Item';
+        const qty = parseFloat(it.qty) || 0;
+        const unit = it.unit || 'kg';
+        const rate = parseFloat(it.unit_rate ?? it.rate) || 0;
+        const base = parseFloat(it.base_amount) || (qty * rate);
+        const allocated = parseFloat(it.allocated) || 0;
+        const landedCost = parseFloat(it.landed_cost) || (base + allocated);
+        const landedRate = qty > 0 ? (landedCost / qty) : rate;
+
+        return `
         <tr>
-          <td><strong>${it.name}</strong></td>
-          <td>${it.qty.toLocaleString()} ${it.unit}</td>
-          <td>Rs ${it.unit_rate.toLocaleString()}</td>
-          <td>Rs ${it.base_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td class="text-primary fw-bold">+ Rs ${it.allocated.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td class="fw-bold">Rs ${it.landed_cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td class="text-success fw-bold">Rs ${it.landed_rate.toFixed(2)}/kg</td>
+          <td><strong>${name}</strong></td>
+          <td>${qty.toLocaleString()} ${unit}</td>
+          <td>Rs ${rate.toLocaleString()}</td>
+          <td>Rs ${base.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="text-primary fw-bold">+ Rs ${allocated.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="fw-bold">Rs ${landedCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="text-success fw-bold">Rs ${landedRate.toFixed(2)}/kg</td>
           <td class="text-center">
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePurchaseLine(${idx})">
               <i class="fa-solid fa-trash"></i>
             </button>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     // Render charges table
