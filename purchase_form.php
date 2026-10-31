@@ -252,6 +252,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
           'name' => $it['name'],
           'unit' => $it['unit'],
           'qty' => (float)$it['qty'],
+          'rate' => (float)$it['unit_rate'],
           'unit_rate' => (float)$it['unit_rate'],
           'line_discount' => (float)($it['line_discount'] ?? 0),
           'base_amount' => (float)$it['base_amount']
@@ -513,9 +514,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       purAccEl.value = "<?= (int)$editPur['payment_account_id'] ?>";
     }
   <?php endif; ?>
-  renderPurchaseItems();
-  renderCharges();
-  calculatePurchaseTotals();
+  recalculateLandedDistribution();
 </script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
