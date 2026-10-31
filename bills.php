@@ -157,15 +157,17 @@ $finAccounts = $db->query("
               <?php endif; ?>
               <td class="text-end text-nowrap">
                 <?php if ($b['status'] !== 'cancelled' && (float)$b['due_amount'] > 0.009): ?>
-                  <button type="button" class="btn btn-sm btn-success me-1" 
-                          onclick='openPayModal(<?= json_encode([
-                            'id' => (int)$b['id'],
-                            'invoice_no' => $b['invoice_no'],
-                            'customer_name' => !empty($b['customer_name_custom']) ? $b['customer_name_custom'] : $b['customer_name'],
-                            'grand_total' => (float)$b['grand_total'],
-                            'paid_amount' => (float)$b['paid_amount'],
-                            'due_amount' => (float)$b['due_amount']
-                          ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'
+                  <button type="button" 
+                          class="btn btn-sm btn-success me-1 btn-pay-bill" 
+                          data-id="<?= (int)$b['id'] ?>"
+                          data-invoice="<?= htmlspecialchars($b['invoice_no'], ENT_QUOTES) ?>"
+                          data-customer="<?= htmlspecialchars(!empty($b['customer_name_custom']) ? $b['customer_name_custom'] : $b['customer_name'], ENT_QUOTES) ?>"
+                          data-grand="<?= (float)$b['grand_total'] ?>"
+                          data-paid="<?= (float)$b['paid_amount'] ?>"
+                          data-due="<?= (float)$b['due_amount'] ?>"
+                          data-bs-toggle="modal" 
+                          data-bs-target="#billPaymentModal"
+                          onclick="openPayModalDirect(this)"
                           title="Receive Payment for this Bill">
                     <i class="fa-solid fa-hand-holding-dollar me-1"></i> Pay / وصولی
                   </button>
@@ -194,7 +196,7 @@ $finAccounts = $db->query("
         <h5 class="modal-title fw-bold" id="billPaymentModalLabel">
           <i class="fa-solid fa-hand-holding-dollar text-warning me-2"></i> Receive Bill Payment · بل کی وصولی
         </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="closePayModal()"></button>
       </div>
       <form id="billPaymentForm" onsubmit="submitBillPayment(event)">
         <input type="hidden" name="sale_id" id="pay_sale_id">
@@ -292,7 +294,7 @@ $finAccounts = $db->query("
         </div>
 
         <div class="modal-footer bg-light px-4 py-3">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel (منسوخ)</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" onclick="closePayModal()">Cancel (منسوخ)</button>
           <button type="submit" id="pay_submit_btn" class="btn btn-success fw-bold px-4">
             <i class="fa-solid fa-check me-1"></i> Confirm Payment (وصولی درج کریں)
           </button>
@@ -306,33 +308,102 @@ $finAccounts = $db->query("
   let currentDueAmount = 0;
   let payModalInstance = null;
 
+  function openPayModalDirect(btn) {
+    if (!btn) return;
+    const sale = {
+      id: btn.getAttribute('data-id'),
+      invoice_no: btn.getAttribute('data-invoice') || '',
+      customer_name: btn.getAttribute('data-customer') || '',
+      grand_total: parseFloat(btn.getAttribute('data-grand')) || 0,
+      paid_amount: parseFloat(btn.getAttribute('data-paid')) || 0,
+      due_amount: parseFloat(btn.getAttribute('data-due')) || 0
+    };
+    openPayModal(sale);
+  }
+
   function openPayModal(sale) {
+    if (!sale) return;
     currentDueAmount = parseFloat(sale.due_amount) || 0;
-    document.getElementById('pay_sale_id').value = sale.id;
-    document.getElementById('pay_invoice_no').textContent = sale.invoice_no;
-    document.getElementById('pay_customer_name').textContent = sale.customer_name;
-    document.getElementById('pay_grand_total').textContent = 'Rs ' + parseFloat(sale.grand_total).toLocaleString('en-US', {minimumFractionDigits: 2});
-    document.getElementById('pay_already_paid').textContent = 'Rs ' + parseFloat(sale.paid_amount).toLocaleString('en-US', {minimumFractionDigits: 2});
-    document.getElementById('pay_due_badge').textContent = 'Rs ' + currentDueAmount.toLocaleString('en-US', {minimumFractionDigits: 2});
+    
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+    setVal('pay_sale_id', sale.id);
+    setText('pay_invoice_no', sale.invoice_no);
+    setText('pay_customer_name', sale.customer_name);
+    setText('pay_grand_total', 'Rs ' + parseFloat(sale.grand_total).toLocaleString('en-US', {minimumFractionDigits: 2}));
+    setText('pay_already_paid', 'Rs ' + parseFloat(sale.paid_amount).toLocaleString('en-US', {minimumFractionDigits: 2}));
+    setText('pay_due_badge', 'Rs ' + currentDueAmount.toLocaleString('en-US', {minimumFractionDigits: 2}));
     
     const amountInput = document.getElementById('pay_amount');
-    amountInput.value = currentDueAmount.toFixed(2);
-    amountInput.max = currentDueAmount.toFixed(2);
+    if (amountInput) {
+      amountInput.value = currentDueAmount.toFixed(2);
+      amountInput.max = currentDueAmount.toFixed(2);
+    }
     
-    document.getElementById('pay_cheque_no').value = '';
-    document.getElementById('pay_narration').value = `Delivery / bill payment for ${sale.invoice_no}`;
+    setVal('pay_cheque_no', '');
+    setVal('pay_narration', `Delivery / bill payment for ${sale.invoice_no}`);
     
     const errorAlert = document.getElementById('pay_error_alert');
-    errorAlert.classList.add('d-none');
-    errorAlert.textContent = '';
+    if (errorAlert) {
+      errorAlert.classList.add('d-none');
+      errorAlert.textContent = '';
+    }
     
     const modalEl = document.getElementById('billPaymentModal');
-    payModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-    payModalInstance.show();
+    if (!modalEl) return;
+
+    // 1. Try Bootstrap 5 Modal
+    if (window.bootstrap && window.bootstrap.Modal) {
+      try {
+        if (!payModalInstance) {
+          payModalInstance = (bootstrap.Modal.getOrCreateInstance) 
+            ? bootstrap.Modal.getOrCreateInstance(modalEl) 
+            : new bootstrap.Modal(modalEl);
+        }
+        payModalInstance.show();
+        return;
+      } catch (err) {
+        console.warn('Bootstrap modal show failed, fallback to native display:', err);
+      }
+    }
+
+    // 2. Native CSS fallback if bootstrap JS is absent/blocked
+    modalEl.classList.add('show');
+    modalEl.style.display = 'block';
+    modalEl.removeAttribute('aria-hidden');
+    modalEl.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+    if (!document.getElementById('modal-fallback-backdrop')) {
+      const backdrop = document.createElement('div');
+      backdrop.id = 'modal-fallback-backdrop';
+      backdrop.className = 'modal-backdrop fade show';
+      backdrop.onclick = closePayModal;
+      document.body.appendChild(backdrop);
+    }
+  }
+
+  function closePayModal() {
+    const modalEl = document.getElementById('billPaymentModal');
+    if (payModalInstance) {
+      try { payModalInstance.hide(); } catch(e) {}
+    }
+    if (modalEl) {
+      modalEl.classList.remove('show');
+      modalEl.style.display = 'none';
+      modalEl.setAttribute('aria-hidden', 'true');
+      modalEl.removeAttribute('aria-modal');
+    }
+    document.body.classList.remove('modal-open');
+    const backdrop = document.getElementById('modal-fallback-backdrop');
+    if (backdrop) backdrop.remove();
   }
 
   function setFullDueAmount() {
-    document.getElementById('pay_amount').value = currentDueAmount.toFixed(2);
+    const amountInput = document.getElementById('pay_amount');
+    if (amountInput) {
+      amountInput.value = currentDueAmount.toFixed(2);
+    }
   }
 
   function onAccountChange(select) {
@@ -340,6 +411,7 @@ $finAccounts = $db->query("
     if (!selectedOpt) return;
     const type = selectedOpt.getAttribute('data-type');
     const modeSelect = document.getElementById('pay_mode');
+    if (!modeSelect) return;
     if (type === 'Cash') {
       modeSelect.value = 'Cash';
     } else if (type === 'Bank' && modeSelect.value === 'Cash') {
@@ -379,9 +451,7 @@ $finAccounts = $db->query("
       });
       const json = await res.json();
       if (json.success) {
-        if (payModalInstance) {
-          payModalInstance.hide();
-        }
+        closePayModal();
         const printUpdated = confirm(`✅ ${json.message}\n\nکیا آپ اپ ڈیٹ شدہ بل پرنٹ کرنا چاہتے ہیں؟\n(Do you want to print the updated bill now?)`);
         if (printUpdated && json.data && json.data.sale_id) {
           window.open(`print_bill.php?id=${json.data.sale_id}`, '_blank');
