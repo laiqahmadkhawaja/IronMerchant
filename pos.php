@@ -59,6 +59,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
   <span class="badge bg-white text-dark border"><kbd>F2</kbd> Customer</span>
   <span class="badge bg-white text-dark border"><kbd>F3</kbd> Labour</span>
   <span class="badge bg-white text-dark border"><kbd>F4</kbd> Freight</span>
+  <span class="badge bg-white text-dark border"><kbd>F6</kbd> Cutting</span>
   <span class="badge bg-white text-dark border"><kbd>F7</kbd> Paid Amount</span>
   <span class="badge bg-success text-white"><kbd>F8</kbd> or <kbd>Ctrl+Enter</kbd> Save &amp; Print</span>
   <span class="badge <?= $allowNegativeStock ? 'bg-warning text-dark' : 'bg-primary text-white' ?> border">
@@ -218,9 +219,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       <!-- Charges & Discounts -->
       <div class="p-3 bg-light rounded-3 border mb-3">
         <div class="row g-2 mb-2">
-          <div class="col-6">
+          <div class="col-12 col-md-4">
             <label class="form-label d-flex justify-content-between">
-              <span>Labour / Crane Charges</span>
+              <span>Labour / Crane</span>
               <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F3]</span>
             </label>
             <div class="input-group">
@@ -228,14 +229,24 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
               <input type="number" id="labourCharge" class="form-control" value="<?= (float)($editSale['labour_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-12 col-md-4">
             <label class="form-label d-flex justify-content-between">
-              <span>Delivery / Freight Charges</span>
+              <span>Delivery</span>
               <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F4]</span>
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
               <input type="number" id="deliveryCharge" class="form-control" value="<?= (float)($editSale['delivery_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label d-flex justify-content-between">
+              <span>Cutting (کٹائی)</span>
+              <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F6]</span>
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">Rs</span>
+              <input type="number" id="cuttingCharge" class="form-control" value="<?= (float)($editSale['cutting_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
             </div>
           </div>
         </div>
@@ -484,9 +495,10 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     const subtotal = cart.reduce((s, x) => s + x.line_total, 0);
     const labour = parseFloat(document.getElementById('labourCharge').value) || 0;
     const delivery = parseFloat(document.getElementById('deliveryCharge').value) || 0;
+    const cutting = parseFloat(document.getElementById('cuttingCharge').value) || 0;
     const discount = parseFloat(document.getElementById('discountAmount').value) || 0;
 
-    const grand = Math.max(0, (subtotal + labour + delivery) - discount);
+    const grand = Math.max(0, (subtotal + labour + delivery + cutting) - discount);
     
     const sel = document.getElementById('custSelect');
     const opt = (sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
@@ -526,8 +538,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     const subtotal = cart.reduce((s, x) => s + x.line_total, 0);
     const labour = parseFloat(document.getElementById('labourCharge').value) || 0;
     const delivery = parseFloat(document.getElementById('deliveryCharge').value) || 0;
+    const cutting = parseFloat(document.getElementById('cuttingCharge').value) || 0;
     const discount = parseFloat(document.getElementById('discountAmount').value) || 0;
-    const grand = Math.max(0, (subtotal + labour + delivery) - discount);
+    const grand = Math.max(0, (subtotal + labour + delivery + cutting) - discount);
 
     if (isWalkIn) {
       if (payMethod === 'Credit' && (!paidVal || parseFloat(paidVal) <= 0)) {
@@ -584,6 +597,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     formData.append('discount', document.getElementById('discountAmount').value);
     formData.append('labour_charge', document.getElementById('labourCharge').value);
     formData.append('delivery_charge', document.getElementById('deliveryCharge').value);
+    formData.append('cutting_charge', document.getElementById('cuttingCharge').value);
     formData.append('payment_method', document.getElementById('paymentMethod').value);
     formData.append('payment_account_id', document.getElementById('depositAccount').value);
     formData.append('paid_amount', document.getElementById('paidAmount').value);
@@ -642,6 +656,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     document.getElementById('discountAmount').value = '0';
     document.getElementById('labourCharge').value = '0';
     document.getElementById('deliveryCharge').value = '0';
+    document.getElementById('cuttingCharge').value = '0';
     document.getElementById('paidAmount').value = '';
     document.getElementById('paymentMethod').value = 'Cash';
 
@@ -744,6 +759,12 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       else if (e.key === 'F4' || (e.altKey && (e.key === 'd' || e.key === 'D'))) {
         e.preventDefault();
         if (deliveryInput) { deliveryInput.focus(); deliveryInput.select(); }
+      }
+      // F6 or Alt+K: Focus Cutting Charges
+      else if (e.key === 'F6' || (e.altKey && (e.key === 'k' || e.key === 'K'))) {
+        e.preventDefault();
+        const cutInput = document.getElementById('cuttingCharge');
+        if (cutInput) { cutInput.focus(); cutInput.select(); }
       }
       // F7 or Alt+P: Focus Amount Paid Now
       else if (e.key === 'F7' || (e.altKey && (e.key === 'p' || e.key === 'P'))) {

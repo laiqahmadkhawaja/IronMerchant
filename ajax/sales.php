@@ -147,6 +147,7 @@ if ($action === 'create') {
     $discount = max(0.0, (float)($_POST['discount'] ?? 0));
     $labourCharge = max(0.0, (float)($_POST['labour_charge'] ?? 0));
     $deliveryCharge = max(0.0, (float)($_POST['delivery_charge'] ?? 0));
+    $cuttingCharge = max(0.0, (float)($_POST['cutting_charge'] ?? 0));
     $paymentMethod = trim((string)($_POST['payment_method'] ?? 'Cash'));
     $paymentAccountId = (int)($_POST['payment_account_id'] ?? 1);
     if ($paymentAccountId <= 0) {
@@ -242,7 +243,7 @@ if ($action === 'create') {
             }
         }
 
-        $additionalCharges = $labourCharge + $deliveryCharge;
+        $additionalCharges = $labourCharge + $deliveryCharge + $cuttingCharge;
         $grandTotal = round(($subtotal + $additionalCharges) - $discount, 2);
 
         // Paid Amount & Advance Handling (Walk-in allows advance with remaining payable upon delivery)
@@ -267,8 +268,8 @@ if ($action === 'create') {
         // 2. Insert sales header
         $saleStmt = $db->prepare("
             INSERT INTO `sales` 
-            (`invoice_no`, `customer_id`, `customer_name_custom`, `customer_phone_custom`, `sale_date`, `sale_time`, `subtotal`, `labour_charge`, `delivery_charge`, `additional_charges`, `discount`, `tax_amount`, `grand_total`, `paid_amount`, `due_amount`, `payment_status`, `payment_method`, `payment_account_id`, `total_cogs`, `status`, `notes`, `created_by`, `created_at`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, 0.00, 'posted', ?, ?, NOW())
+            (`invoice_no`, `customer_id`, `customer_name_custom`, `customer_phone_custom`, `sale_date`, `sale_time`, `subtotal`, `labour_charge`, `delivery_charge`, `cutting_charge`, `additional_charges`, `discount`, `tax_amount`, `grand_total`, `paid_amount`, `due_amount`, `payment_status`, `payment_method`, `payment_account_id`, `total_cogs`, `status`, `notes`, `created_by`, `created_at`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, ?, 0.00, 'posted', ?, ?, NOW())
         ");
         $saleStmt->execute([
             $invoiceNo,
@@ -280,6 +281,7 @@ if ($action === 'create') {
             $subtotal,
             $labourCharge,
             $deliveryCharge,
+            $cuttingCharge,
             $additionalCharges,
             $discount,
             $grandTotal,
@@ -327,6 +329,10 @@ if ($action === 'create') {
         if ($deliveryCharge > 0) {
             $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Delivery/Freight', ?)")
                ->execute([$saleId, $deliveryCharge]);
+        }
+        if ($cuttingCharge > 0) {
+            $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Cutting', ?)")
+               ->execute([$saleId, $cuttingCharge]);
         }
 
         // 5. Construct Double-Entry Journal Entry
@@ -395,9 +401,18 @@ if ($action === 'create') {
             $journalLines[] = [
                 'account_id' => COA_SERVICE_INCOME,
                 'party_id' => null,
-                'description' => "Labour/Cutting service on Bill #{$invoiceNo}",
+                'description' => "Labour service on Bill #{$invoiceNo}",
                 'debit' => 0.00,
                 'credit' => $labourCharge
+            ];
+        }
+        if ($cuttingCharge > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SERVICE_INCOME,
+                'party_id' => null,
+                'description' => "Cutting service on Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $cuttingCharge
             ];
         }
 
@@ -492,6 +507,7 @@ if ($action === 'update') {
     $discount = max(0.0, (float)($_POST['discount'] ?? 0));
     $labourCharge = max(0.0, (float)($_POST['labour_charge'] ?? 0));
     $deliveryCharge = max(0.0, (float)($_POST['delivery_charge'] ?? 0));
+    $cuttingCharge = max(0.0, (float)($_POST['cutting_charge'] ?? 0));
     $paymentMethod = trim((string)($_POST['payment_method'] ?? 'Cash'));
     $paymentAccountId = (int)($_POST['payment_account_id'] ?? 1);
     if ($paymentAccountId <= 0) {
@@ -623,7 +639,7 @@ if ($action === 'update') {
             }
         }
 
-        $additionalCharges = $labourCharge + $deliveryCharge;
+        $additionalCharges = $labourCharge + $deliveryCharge + $cuttingCharge;
         $grandTotal = round(($subtotal + $additionalCharges) - $discount, 2);
 
         if ($paidAmountInput === null || $paidAmountInput === '') {
@@ -670,6 +686,10 @@ if ($action === 'update') {
         if ($deliveryCharge > 0) {
             $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Delivery/Freight', ?)")
                ->execute([$saleId, $deliveryCharge]);
+        }
+        if ($cuttingCharge > 0) {
+            $db->prepare("INSERT INTO sale_charges (sale_id, charge_name, amount) VALUES (?, 'Cutting', ?)")
+               ->execute([$saleId, $cuttingCharge]);
         }
 
         // 8. Construct new Journal Entry
@@ -737,6 +757,15 @@ if ($action === 'update') {
                 'credit' => $labourCharge
             ];
         }
+        if ($cuttingCharge > 0) {
+            $journalLines[] = [
+                'account_id' => COA_SERVICE_INCOME,
+                'party_id' => null,
+                'description' => "Cutting service on edited Bill #{$invoiceNo}",
+                'debit' => 0.00,
+                'credit' => $cuttingCharge
+            ];
+        }
 
         if ($totalCogs > 0) {
             $journalLines[] = [
@@ -794,6 +823,7 @@ if ($action === 'update') {
                 `subtotal` = ?,
                 `labour_charge` = ?,
                 `delivery_charge` = ?,
+                `cutting_charge` = ?,
                 `additional_charges` = ?,
                 `discount` = ?,
                 `grand_total` = ?,
@@ -815,6 +845,7 @@ if ($action === 'update') {
             $subtotal,
             $labourCharge,
             $deliveryCharge,
+            $cuttingCharge,
             $additionalCharges,
             $discount,
             $grandTotal,

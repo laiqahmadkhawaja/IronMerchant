@@ -35,6 +35,12 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
         if (!$pCol) {
             $db->exec("ALTER TABLE `parties` ADD COLUMN `is_walkin` TINYINT(1) NOT NULL DEFAULT 0 AFTER `type`");
         }
+
+        // Auto-heal sales cutting_charge column if missing
+        $cCol = $db->query("SHOW COLUMNS FROM `sales` LIKE 'cutting_charge'")->fetch();
+        if (!$cCol) {
+            $db->exec("ALTER TABLE `sales` ADD COLUMN `cutting_charge` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `delivery_charge`");
+        }
         }
     } catch (Throwable $e) {
         error_log("Failed to auto-heal chart of accounts: " . $e->getMessage());

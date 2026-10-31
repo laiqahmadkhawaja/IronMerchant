@@ -36,3 +36,5 @@ ALTER TABLE journal_entries MODIFY COLUMN source_type VARCHAR(30) NOT NULL DEFAU
 
 -- Ensure parties has is_walkin flag
 ALTER TABLE parties ADD COLUMN IF NOT EXISTS is_walkin TINYINT(1) NOT NULL DEFAULT 0 AFTER 	ype;
+-- Add cutting_charge column to sales table
+ALTER TABLE `sales` ADD COLUMN IF NOT EXISTS `cutting_charge` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `delivery_charge`;

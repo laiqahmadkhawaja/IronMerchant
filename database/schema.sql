@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS `sales` (
   `subtotal` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
   `labour_charge` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
   `delivery_charge` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+  `cutting_charge` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
   `additional_charges` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
   `discount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
   `tax_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,

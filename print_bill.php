@@ -45,16 +45,19 @@ $chargesStmt = $db->prepare("SELECT * FROM sale_charges WHERE sale_id = ?");
 $chargesStmt->execute([$id]);
 $charges = $chargesStmt->fetchAll();
 
-// Extract labour & delivery charges separately
+// Extract labour, delivery & cutting charges separately
 $labourAmount = (float)($sale['labour_charge'] ?? 0);
 $deliveryAmount = (float)($sale['delivery_charge'] ?? 0);
-if ($labourAmount <= 0 && $deliveryAmount <= 0 && !empty($charges)) {
+$cuttingAmount = (float)($sale['cutting_charge'] ?? 0);
+if (!empty($charges)) {
     foreach ($charges as $ch) {
         $chName = strtolower((string)$ch['charge_name']);
-        if (str_contains($chName, 'labour') || str_contains($chName, 'crane')) {
+        if ($labourAmount <= 0 && (str_contains($chName, 'labour') || str_contains($chName, 'crane'))) {
             $labourAmount += (float)$ch['amount'];
-        } elseif (str_contains($chName, 'delivery') || str_contains($chName, 'freight')) {
+        } elseif ($deliveryAmount <= 0 && (str_contains($chName, 'delivery') || str_contains($chName, 'freight'))) {
             $deliveryAmount += (float)$ch['amount'];
+        } elseif ($cuttingAmount <= 0 && (str_contains($chName, 'cut') || str_contains($chName, 'cutting'))) {
+            $cuttingAmount += (float)$ch['amount'];
         }
     }
 }
@@ -466,6 +469,12 @@ foreach ($items as $it) {
           <span class="font-num">+ <?= number_format($deliveryAmount, 2) ?></span>
         </div>
       <?php endif; ?>
+      <?php if ($cuttingAmount > 0): ?>
+        <div class="th-row th-meta">
+          <span>Cutting Charges (کٹائی):</span>
+          <span class="font-num">+ <?= number_format($cuttingAmount, 2) ?></span>
+        </div>
+      <?php endif; ?>
       <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
         <div class="th-row th-meta">
           <span>Labour / Delivery:</span>
@@ -781,6 +790,16 @@ foreach ($items as $it) {
                   <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">گاڑی کرایہ / فریٹ چارجز</span>
                 </div>
                 <span class="font-num fw-bold">+ <?= formatMoney($deliveryAmount) ?></span>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($cuttingAmount > 0): ?>
+              <div class="d-flex justify-content-between align-items-center py-1 text-primary">
+                <div class="d-flex align-items-center gap-1">
+                  <span>Cutting Charges</span>
+                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">کٹائی چارجز</span>
+                </div>
+                <span class="font-num fw-bold">+ <?= formatMoney($cuttingAmount) ?></span>
               </div>
             <?php endif; ?>
 
