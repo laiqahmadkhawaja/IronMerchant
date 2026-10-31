@@ -492,7 +492,7 @@ $maxRows = max(count($incomeEntries), count($expenseEntries), count($transferEnt
       <span style="font-size: 11.5px; font-weight: 700; color: #14307a; text-transform: uppercase; letter-spacing: 0.5px;">
         <i class="fa-solid fa-table-cells me-1"></i> Shift Transactions Breakdown (Transfers · Expense · Income)
       </span>
-      <span style="font-size: 10.5px; color: #64748b; margin-left: 8px;">(Click any reference number to view the bill/voucher in a new tab)</span>
+      <span style="font-size: 10.5px; color: #64748b; margin-left: 8px;"></span>
     </div>
 
     <table class="reconcile-grid-table">

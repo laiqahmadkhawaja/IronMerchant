@@ -278,22 +278,45 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   }
 
   function recalculateLandedDistribution() {
-    const totalCharges = purchaseCharges.reduce((s, c) => s + c.amount, 0);
     const totalQty = purchaseItems.reduce((s, i) => s + i.qty, 0);
+    const totalBase = purchaseItems.reduce((s, i) => s + i.base_amount, 0);
+    const itemCount = purchaseItems.length;
 
-    let allocatedSum = 0;
-    purchaseItems.forEach((it, idx) => {
-      let alloc = 0;
-      if (totalCharges > 0 && totalQty > 0) {
-        if (idx === purchaseItems.length - 1) {
-          alloc = totalCharges - allocatedSum;
-        } else {
-          alloc = Math.round((it.qty / totalQty) * totalCharges * 100) / 100;
-          allocatedSum += alloc;
-        }
-      }
-      it.allocated = alloc;
-      it.landed_cost = it.base_amount + alloc;
+    // Reset allocated amounts
+    purchaseItems.forEach(it => { it.allocated = 0; });
+
+    if (itemCount > 0) {
+      purchaseCharges.forEach(c => {
+        const cAmt = parseFloat(c.amount) || 0;
+        if (cAmt <= 0) return;
+        const method = (c.allocation_method || 'weight').toLowerCase();
+
+        let chargeAllocSum = 0;
+        purchaseItems.forEach((it, idx) => {
+          let itemAlloc = 0;
+          if (idx === itemCount - 1) {
+            // Remainder to last item to prevent cent/paisa rounding discrepancy
+            itemAlloc = Math.round((cAmt - chargeAllocSum) * 100) / 100;
+          } else {
+            if (method === 'weight' && totalQty > 0) {
+              itemAlloc = Math.round((it.qty / totalQty) * cAmt * 100) / 100;
+            } else if (method === 'value' && totalBase > 0) {
+              itemAlloc = Math.round((it.base_amount / totalBase) * cAmt * 100) / 100;
+            } else if (method === 'equal' && itemCount > 0) {
+              itemAlloc = Math.round((cAmt / itemCount) * 100) / 100;
+            } else {
+              itemAlloc = totalQty > 0 ? Math.round((it.qty / totalQty) * cAmt * 100) / 100 : 0;
+            }
+            chargeAllocSum += itemAlloc;
+          }
+          it.allocated += itemAlloc;
+        });
+      });
+    }
+
+    purchaseItems.forEach(it => {
+      it.allocated = Math.round(it.allocated * 100) / 100;
+      it.landed_cost = Math.round((it.base_amount + it.allocated) * 100) / 100;
       it.landed_rate = it.qty > 0 ? (it.landed_cost / it.qty) : 0;
     });
 
@@ -330,7 +353,13 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
           <td><strong>${c.charge_name}</strong></td>
           <td>Rs ${c.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
           <td><span class="badge bg-success">Capitalized to Inventory</span></td>
-          <td>By Weight (وزن)</td>
+          <td>
+            <select class="form-select form-select-sm" style="max-width: 240px; font-weight: 600;" onchange="updatePurchaseChargeMethod(${idx}, this.value)">
+              <option value="weight" ${(c.allocation_method === 'weight') ? 'selected' : ''}>By Weight / Qty (وزن کے حساب سے)</option>
+              <option value="value" ${(c.allocation_method === 'value') ? 'selected' : ''}>By Item Value (مالیت / رقم کے حساب سے)</option>
+              <option value="equal" ${(c.allocation_method === 'equal') ? 'selected' : ''}>Equally across items (برابر تقسیم)</option>
+            </select>
+          </td>
           <td class="text-center">
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePurchaseCharge(${idx})">
               <i class="fa-solid fa-trash"></i>
@@ -341,6 +370,13 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     }
 
     calculatePurchaseTotals();
+  }
+
+  function updatePurchaseChargeMethod(idx, newMethod) {
+    if (purchaseCharges[idx]) {
+      purchaseCharges[idx].allocation_method = newMethod;
+      recalculateLandedDistribution();
+    }
   }
 
   function calculatePurchaseTotals() {

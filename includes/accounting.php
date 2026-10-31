@@ -508,53 +508,59 @@ function relievePurchaseReturnItem(
  * @return array Augmented items array with 'allocated_charge', 'landed_cost', and 'landed_unit_rate'
  */
 function computePurchaseLandedCosts(array $items, array $charges): array {
-    $totalCapitalizable = 0.0;
-    $method = 'weight'; // Default weight/quantity for steel
-
-    foreach ($charges as $c) {
-        if (!empty($c['capitalize_inventory'])) {
-            $totalCapitalizable += (float)$c['amount'];
-            if (!empty($c['allocation_method'])) {
-                $method = $c['allocation_method'];
-            }
-        }
+    $itemCount = count($items);
+    if ($itemCount === 0) {
+        return [];
     }
 
     $totalQty = 0.0;
     $totalBaseAmount = 0.0;
-    $itemCount = count($items);
-
     foreach ($items as $it) {
         $totalQty += (float)$it['qty'];
         $totalBaseAmount += (float)$it['base_amount'];
     }
 
-    $allocatedSum = 0.0;
-    $result = [];
+    $allocatedPerItem = array_fill(0, $itemCount, 0.0);
 
+    foreach ($charges as $c) {
+        if (isset($c['capitalize_inventory']) && (int)$c['capitalize_inventory'] === 0) {
+            continue;
+        }
+
+        $cAmt = (float)($c['amount'] ?? 0);
+        if ($cAmt <= 0) continue;
+
+        $cMethod = strtolower(trim((string)($c['allocation_method'] ?? 'weight')));
+        $chargeAllocSum = 0.0;
+
+        for ($i = 0; $i < $itemCount; $i++) {
+            if ($i === $itemCount - 1) {
+                // Remainder to last item to prevent cent/paisa rounding loss
+                $itemAlloc = round($cAmt - $chargeAllocSum, 2);
+            } else {
+                $qty = (float)$items[$i]['qty'];
+                $base = (float)$items[$i]['base_amount'];
+
+                if ($cMethod === 'weight' && $totalQty > 0) {
+                    $itemAlloc = round(($qty / $totalQty) * $cAmt, 2);
+                } elseif ($cMethod === 'value' && $totalBaseAmount > 0) {
+                    $itemAlloc = round(($base / $totalBaseAmount) * $cAmt, 2);
+                } elseif ($cMethod === 'equal' && $itemCount > 0) {
+                    $itemAlloc = round($cAmt / $itemCount, 2);
+                } else {
+                    $itemAlloc = ($totalQty > 0) ? round(($qty / $totalQty) * $cAmt, 2) : 0;
+                }
+                $chargeAllocSum += $itemAlloc;
+            }
+            $allocatedPerItem[$i] += $itemAlloc;
+        }
+    }
+
+    $result = [];
     foreach ($items as $index => $it) {
         $qty = (float)$it['qty'];
         $base = (float)$it['base_amount'];
-        $allocated = 0.0;
-
-        if ($totalCapitalizable > 0) {
-            if ($index === $itemCount - 1) {
-                // Give remainder to last item to prevent rounding loss
-                $allocated = round($totalCapitalizable - $allocatedSum, 2);
-            } else {
-                if ($method === 'weight' && $totalQty > 0) {
-                    $allocated = round(($qty / $totalQty) * $totalCapitalizable, 2);
-                } elseif ($method === 'value' && $totalBaseAmount > 0) {
-                    $allocated = round(($base / $totalBaseAmount) * $totalCapitalizable, 2);
-                } elseif ($method === 'equal' && $itemCount > 0) {
-                    $allocated = round($totalCapitalizable / $itemCount, 2);
-                } else {
-                    $allocated = ($totalQty > 0) ? round(($qty / $totalQty) * $totalCapitalizable, 2) : 0;
-                }
-                $allocatedSum += $allocated;
-            }
-        }
-
+        $allocated = round($allocatedPerItem[$index], 2);
         $landedCost = round($base + $allocated, 2);
         $landedUnitRate = $qty > 0 ? round($landedCost / $qty, 4) : 0;
 
