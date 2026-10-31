@@ -11,6 +11,8 @@ require_once __DIR__ . '/includes/functions.php';
 
 requireAuth();
 
+$type = trim($_GET['type'] ?? 'customer'); // 'customer', 'supplier', or 'account'
+
 if ($type === 'customer' && !hasPermission('customers')) {
     http_response_code(403);
     die("<div style='font-family:sans-serif;padding:30px;color:#c00;'><h3>403 · Access Denied (رسائی ممنوع ہے)</h3><p>You do not have permission to view customer khata ledgers.</p></div>");
@@ -23,7 +25,6 @@ if ($type === 'customer' && !hasPermission('customers')) {
 }
 
 $pdo = getPDO();
-$type = trim($_GET['type'] ?? 'customer'); // 'customer', 'supplier', or 'account'
 $id   = (int)($_GET['id'] ?? 0);
 $startDate = trim($_GET['start_date'] ?? date('Y-m-01'));
 $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
@@ -33,6 +34,17 @@ $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
+
+// Resolve party-specific statement disclaimer note
+if ($type === 'supplier') {
+    $statementNoteTitle = !empty($company['supplier_statement_note_title']) ? $company['supplier_statement_note_title'] : 'نوٹ برائے سپلائر / مل:';
+    $statementNoteUrdu = !empty($company['supplier_statement_note_urdu']) ? $company['supplier_statement_note_urdu'] : 'کسی بھی قسم کے فرق یا تضاد کی صورت میں 7 یوم کے اندر اندر دفتر سے رابطہ فرما کر تصدیق کر لیں۔ بصورت دیگر یہ گوشوارہ حساب قطعی اور درست تسلیم کیا جائے گا۔';
+    $statementNoteEn = !empty($company['supplier_statement_note_en']) ? $company['supplier_statement_note_en'] : "For invoice verification, please contact accounts department at {$compPhone}.";
+} else {
+    $statementNoteTitle = !empty($company['customer_statement_note_title']) ? $company['customer_statement_note_title'] : 'نوٹ برائے کھاتہ دار / پارٹی:';
+    $statementNoteUrdu = !empty($company['customer_statement_note_urdu']) ? $company['customer_statement_note_urdu'] : 'کسی بھی قسم کے فرق یا تضاد کی صورت میں 7 یوم کے اندر اندر دفتر سے رابطہ فرما کر تصدیق کر لیں۔ بصورت دیگر یہ گوشوارہ حساب قطعی اور درست تسلیم کیا جائے گا۔';
+    $statementNoteEn = !empty($company['customer_statement_note_en']) ? $company['customer_statement_note_en'] : "For invoice verification, please contact accounts department at {$compPhone}.";
+}
 
 $entity = null;
 $reportTitle = '';
@@ -796,14 +808,16 @@ if ($type === 'customer') {
 
       <div style="flex: 1.2; min-width: 300px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc;">
         <div class="ur" dir="rtl" style="color: #14307a; font-size: 13px; font-weight: 700; line-height: 1.5; margin-bottom: 2px;">
-          نوٹ برائے کھاتہ دار / پارٹی:
+          <?= htmlspecialchars($statementNoteTitle) ?>
         </div>
         <div class="ur" dir="rtl" style="font-size: 11.5px; color: #334155; line-height: 1.8;">
-          کسی بھی قسم کے فرق یا تضاد کی صورت میں 7 یوم کے اندر اندر دفتر سے رابطہ فرما کر تصدیق کر لیں۔ بصورت دیگر یہ گوشوارہ حساب قطعی اور درست تسلیم کیا جائے گا۔
+          <?= nl2br(htmlspecialchars($statementNoteUrdu)) ?>
         </div>
-        <div style="font-size: 10.5px; color: #64748b; margin-top: 6px;">
-          For invoice verification, please contact accounts department at <strong><?= htmlspecialchars($compPhone) ?></strong>.
-        </div>
+        <?php if (!empty($statementNoteEn)): ?>
+          <div style="font-size: 10.5px; color: #64748b; margin-top: 6px;">
+            <?= htmlspecialchars($statementNoteEn) ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
 

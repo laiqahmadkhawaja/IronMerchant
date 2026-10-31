@@ -62,9 +62,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors[] = $e->getMessage();
                 }
             }
+        } elseif ($action === 'save_statement_note') {
+            $noteTitle = trim($_POST['supplier_statement_note_title'] ?? 'نوٹ برائے سپلائر / مل:');
+            $noteUrdu  = trim($_POST['supplier_statement_note_urdu'] ?? '');
+            $noteEn    = trim($_POST['supplier_statement_note_en'] ?? '');
+
+            try {
+                $stUpd = $pdo->prepare("INSERT INTO company_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stUpd->execute(['supplier_statement_note_title', $noteTitle]);
+                $stUpd->execute(['supplier_statement_note_urdu', $noteUrdu]);
+                $stUpd->execute(['supplier_statement_note_en', $noteEn]);
+
+                logAudit('update', 'company_settings', 0, "Updated supplier statement disclaimer note");
+                setFlash('success', "Supplier statement disclaimer note saved successfully (سپلائر کھاتہ اسٹیٹمنٹ نوٹ محفوظ ہو گیا).");
+                header('Location: suppliers.php#statementNoteCard');
+                exit;
+            } catch (Exception $e) {
+                $errors[] = $e->getMessage();
+            }
         }
     }
 }
+
+$companySettings = getCompanySettings();
 
 // Search and filter
 $search = trim($_GET['search'] ?? '');
@@ -332,6 +352,53 @@ require_once __DIR__ . '/includes/header.php';
               <?php endif; ?>
               <button type="submit" class="btn btn-zb-primary px-4">
                 <i class="fa-solid fa-save me-1"></i> <?= $editSupp ? 'Update Supplier' : 'Save Supplier Profile (محفوظ کریں)' ?>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Supplier Statement Disclaimer Note Card (Editable by User) -->
+    <div class="card mt-4" id="statementNoteCard" style="border: 1px solid var(--bd); border-radius: 10px;">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="mb-0" style="font-weight: 700; color: var(--nv);">
+            <i class="fa-solid fa-file-contract me-2 text-primary"></i> Supplier Statement Disclaimer Note (سپلائر کھاتہ اسٹیٹمنٹ نوٹ)
+          </h6>
+          <span class="text-muted" style="font-size: 12.5px;">This disclaimer note will be printed at the bottom of all supplier ledger statements (پرنٹ سپلائر کھاتہ اسٹیٹمنٹ کے نیچے پرنٹ ہوگا).</span>
+        </div>
+        <span class="badge bg-light text-primary border" style="font-size: 11.5px;">
+          <i class="fa-solid fa-print me-1"></i> Supplier Ledger Print
+        </span>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="suppliers.php">
+          <?= getCSRFInput() ?>
+          <input type="hidden" name="action" value="save_statement_note">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Note Box Header (عنوان نوٹ)</label>
+              <input type="text" name="supplier_statement_note_title" class="form-control ur text-end" dir="rtl" style="font-size: 15px;"
+                     value="<?= htmlspecialchars($companySettings['supplier_statement_note_title'] ?? 'نوٹ برائے سپلائر / مل:') ?>" 
+                     placeholder="نوٹ برائے سپلائر / مل:">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">English Verification &amp; Contact Line (انگریزی رابطہ لائن)</label>
+              <input type="text" name="supplier_statement_note_en" class="form-control" style="font-size: 13px;"
+                     value="<?= htmlspecialchars($companySettings['supplier_statement_note_en'] ?? 'For invoice verification, please contact accounts department at 0300-9641483 · 0300-7499499.') ?>" 
+                     placeholder="For invoice verification, please contact accounts department at 0300-9641483 · 0300-7499499.">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Urdu Disclaimer &amp; Instructions (اردو ہدایات / اختلافی نوٹس)</label>
+              <textarea name="supplier_statement_note_urdu" class="form-control ur text-end" dir="rtl" rows="3" style="line-height: 1.8; font-size: 14.5px;"><?= htmlspecialchars($companySettings['supplier_statement_note_urdu'] ?? 'کسی بھی قسم کے فرق یا تضاد کی صورت میں 7 یوم کے اندر اندر دفتر سے رابطہ فرما کر تصدیق کر لیں۔ بصورت دیگر یہ گوشوارہ حساب قطعی اور درست تسلیم کیا جائے گا۔') ?></textarea>
+              <div class="form-text text-muted" style="font-size: 12px;">
+                <i class="fa-solid fa-circle-info text-primary me-1"></i> یہ تحریر سپلائر کے کھاتہ پرنٹ کے نیچے پرنٹ ہو گی۔
+              </div>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-zb-primary px-4">
+                <i class="fa-solid fa-save me-1"></i> Save Statement Note (نوٹ محفوظ کریں)
               </button>
             </div>
           </div>
