@@ -500,9 +500,9 @@ require_once __DIR__ . '/includes/header.php';
       <a href="closing.php" class="btn btn-sm btn-outline-secondary">
         <i class="fa-solid fa-arrow-left me-1"></i> Current Shift View
       </a>
-      <button onclick="window.print()" class="btn btn-outline-success btn-sm">
+      <a href="print_closing.php?id=<?= $viewClosing['id'] ?>" target="_blank" class="btn btn-outline-success btn-sm">
         <i class="fa-solid fa-print me-1"></i> Print Report
-      </button>
+      </a>
     </div>
   </div>
 
@@ -814,8 +814,8 @@ require_once __DIR__ . '/includes/header.php';
                     <i class="fa-solid fa-cash-register me-1"></i> Manage
                   </a>
                 <?php else: ?>
-                  <a href="closing.php?view_id=<?= $c['id'] ?>" class="btn btn-sm btn-outline-primary">
-                    <i class="fa-solid fa-eye me-1"></i> View / Print
+                  <a href="print_closing.php?id=<?= $c['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-print me-1"></i> View / Print
                   </a>
                 <?php endif; ?>
               </td>
