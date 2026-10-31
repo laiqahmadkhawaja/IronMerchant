@@ -84,6 +84,50 @@ if ($viewId > 0) {
     $viewClosing = $stV->fetch();
 }
 
+// Helper: Ensure initial shift opening float is reflected in Cash financial account & GL
+function syncShiftOpeningCash(PDO $pdo, float $openingCash, string $closingNo, ?int $userId): void {
+    if ($openingCash <= 0) {
+        return;
+    }
+    $stCashAcct = $pdo->query("SELECT id, coa_id, opening_balance, current_balance FROM financial_accounts WHERE account_type = 'Cash' AND is_active = 1 ORDER BY id ASC LIMIT 1");
+    $cashAcct = $stCashAcct ? $stCashAcct->fetch(PDO::FETCH_ASSOC) : null;
+    if (!$cashAcct) {
+        return;
+    }
+
+    $priorFinalized = (int)$pdo->query("SELECT COUNT(*) FROM daily_closings WHERE status = 'finalized'")->fetchColumn();
+
+    // If initial shift float (no prior finalized closings and opening balance is 0.00):
+    if ($priorFinalized === 0 && (float)$cashAcct['opening_balance'] == 0.0) {
+        $pdo->prepare("UPDATE financial_accounts SET opening_balance = ?, current_balance = current_balance + ? WHERE id = ?")
+            ->execute([$openingCash, $openingCash, $cashAcct['id']]);
+
+        $jLines = [
+            [
+                'account_id'  => (int)$cashAcct['coa_id'],
+                'party_id'    => null,
+                'debit'       => $openingCash,
+                'credit'      => 0.0,
+                'description' => "Initial shift opening drawer float ($closingNo)"
+            ],
+            [
+                'account_id'  => 21, // 3040 Opening Balance Equity
+                'party_id'    => null,
+                'debit'       => 0.0,
+                'credit'      => $openingCash,
+                'description' => "Opening float equity injection ($closingNo)"
+            ]
+        ];
+        postJournalEntry($pdo, [
+            'entry_no'    => getNextDocNo('JV', 'journal_entries', 'entry_no'),
+            'entry_date'  => date('Y-m-d'),
+            'source_type' => 'opening',
+            'narration'   => "Initial shift drawer opening cash float: Rs " . number_format($openingCash, 2) . " ($closingNo)",
+            'created_by'  => $userId
+        ], $jLines);
+    }
+}
+
 // ---------------------------------------------------------
 // ACTION 1: OPEN SHIFT (شفٹ اوپن کریں)
 // ---------------------------------------------------------
@@ -128,6 +172,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             ]);
             $newShiftId = (int)$pdo->lastInsertId();
 
+            syncShiftOpeningCash($pdo, $openingCash, $closingNo, $currentUser['id'] ?? null);
+
             logAudit('create', 'daily_closings', $newShiftId, "Opened shift $closingNo ($shiftName) with opening cash Rs $openingCash");
             setFlash('success', "Shift $closingNo ($shiftName) has been OPENED with opening drawer cash of Rs " . number_format($openingCash, 2));
             header("Location: closing.php");
@@ -156,6 +202,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         $openingCash, $openingBank, $notes
                     ]);
                     $newShiftId = (int)$pdo->lastInsertId();
+
+                    syncShiftOpeningCash($pdo, $openingCash, $closingNo, $currentUser['id'] ?? null);
 
                     logAudit('create', 'daily_closings', $newShiftId, "Opened shift $closingNo ($shiftName) with opening cash Rs $openingCash");
                     setFlash('success', "Shift $closingNo ($shiftName) has been OPENED with opening drawer cash of Rs " . number_format($openingCash, 2));
@@ -200,7 +248,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
             $closingNo = $activeShift['closing_no'] ?? generateDocumentNumber('SFT', 'daily_closings', 'closing_no');
 
-            // If there is cash shortage, record Cash Shortage Expense journal entry if significant
+            // If there is cash discrepancy, record reconciliation journal entry
             if ($cashDiff < -0.01) {
                 $shortageAmt = abs($cashDiff);
                 $jLines = [
@@ -222,6 +270,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     'entry_date'  => $targetDate,
                     'source_type' => 'closing',
                     'narration'   => "Shift closing cash shortage: Rs $shortageAmt ($closingNo)",
+                    'created_by'  => $currentUser['id'] ?? null
+                ], $jLines);
+            } elseif ($cashDiff > 0.01) {
+                $excessAmt = abs($cashDiff);
+                $jLines = [
+                    [
+                        'account_id'  => COA_CASH_MAIN,
+                        'debit'       => $excessAmt,
+                        'credit'      => 0.0,
+                        'description' => "Cash drawer reconciliation adjustment ($closingNo)"
+                    ],
+                    [
+                        'account_id'  => 22, // 4000 Operating Revenue / Cash Overage
+                        'debit'       => 0.0,
+                        'credit'      => $excessAmt,
+                        'description' => "Cash excess/overage during shift closing ($closingNo)"
+                    ]
+                ];
+                postJournalEntry($pdo, [
+                    'entry_no'    => getNextDocNo('JV', 'journal_entries', 'entry_no'),
+                    'entry_date'  => $targetDate,
+                    'source_type' => 'closing',
+                    'narration'   => "Shift closing cash excess: Rs $excessAmt ($closingNo)",
                     'created_by'  => $currentUser['id'] ?? null
                 ], $jLines);
             }
