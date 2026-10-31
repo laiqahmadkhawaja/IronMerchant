@@ -390,10 +390,7 @@ if ($activeShift) {
 $stSales = $pdo->prepare("
     SELECT COALESCE(SUM(subtotal), 0) AS gross_sales,
            COALESCE(SUM(discount), 0) AS discount,
-           COALESCE(SUM(grand_total), 0) AS net_sales,
-           COALESCE(SUM(CASE WHEN payment_method = 'Cash' THEN paid_amount ELSE 0 END), 0) AS cash_paid_at_counter,
-           COALESCE(SUM(CASE WHEN payment_method != 'Cash' THEN paid_amount ELSE 0 END), 0) AS bank_paid_at_counter,
-           COALESCE(SUM(due_amount), 0) AS credit_sales
+           COALESCE(SUM(grand_total), 0) AS net_sales
     FROM sales
     WHERE created_at >= ? AND created_at <= ? AND status = 'posted'
 ");
@@ -403,20 +400,52 @@ $salesMetrics = $stSales->fetch();
 $liveGrossSales   = (float)$salesMetrics['gross_sales'];
 $liveDiscount     = (float)$salesMetrics['discount'];
 $liveNetSales     = (float)$salesMetrics['net_sales'];
-$liveCashSales    = (float)$salesMetrics['cash_paid_at_counter'];
-$liveCreditSales  = (float)$salesMetrics['credit_sales'];
-$liveBankSales    = (float)$salesMetrics['bank_paid_at_counter'];
+
+// 1b. Immediate Counter Cash Sales (vouchers created at POS point of sale)
+$stCounterCash = $pdo->prepare("
+    SELECT COALESCE(SUM(v.amount), 0)
+    FROM vouchers v
+    JOIN financial_accounts fa ON v.account_id = fa.id
+    LEFT JOIN journal_entries j ON v.journal_id = j.id
+    WHERE v.created_at >= ? AND v.created_at <= ?
+      AND v.voucher_type = 'RV' 
+      AND fa.account_type = 'Cash' 
+      AND v.status = 'posted'
+      AND (j.source_type = 'sale' OR v.narration LIKE 'Sale Bill #% collection')
+");
+$stCounterCash->execute([$shiftStart, $shiftEnd]);
+$liveCashSales = (float)$stCounterCash->fetchColumn();
+
+// 1c. Immediate Counter Bank Sales (vouchers created at POS point of sale)
+$stCounterBank = $pdo->prepare("
+    SELECT COALESCE(SUM(v.amount), 0)
+    FROM vouchers v
+    JOIN financial_accounts fa ON v.account_id = fa.id
+    LEFT JOIN journal_entries j ON v.journal_id = j.id
+    WHERE v.created_at >= ? AND v.created_at <= ?
+      AND v.voucher_type = 'RV' 
+      AND fa.account_type != 'Cash' 
+      AND v.status = 'posted'
+      AND (j.source_type = 'sale' OR v.narration LIKE 'Sale Bill #% collection')
+");
+$stCounterBank->execute([$shiftStart, $shiftEnd]);
+$liveBankSales = (float)$stCounterBank->fetchColumn();
+
+// 1d. Credit Sales created in this shift (initial deferred credit value)
+$liveCreditSales = max(0.0, $liveNetSales - $liveCashSales - $liveBankSales);
 
 // 2. Customer Cash Collections (RV) - standalone customer recovery vouchers only in shift window
 $stRV = $pdo->prepare("
     SELECT COALESCE(SUM(v.amount), 0)
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
+    LEFT JOIN journal_entries j ON v.journal_id = j.id
     WHERE v.created_at >= ? AND v.created_at <= ?
       AND v.voucher_type = 'RV' 
       AND fa.account_type = 'Cash' 
       AND v.status = 'posted'
-      AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
+      AND (j.source_type != 'sale' OR j.source_type IS NULL)
+      AND (v.narration NOT LIKE 'Sale Bill #% collection' OR v.narration IS NULL)
 ");
 $stRV->execute([$shiftStart, $shiftEnd]);
 $liveCustCollections = (float)$stRV->fetchColumn();
@@ -474,11 +503,13 @@ $stBankRV = $pdo->prepare("
     FROM vouchers v
     JOIN financial_accounts fa ON v.account_id = fa.id
     LEFT JOIN parties p ON v.party_id = p.id
+    LEFT JOIN journal_entries j ON v.journal_id = j.id
     WHERE v.created_at >= ? AND v.created_at <= ?
       AND v.voucher_type = 'RV' 
-      AND fa.account_type = 'Bank' 
+      AND fa.account_type != 'Cash' 
       AND v.status = 'posted'
-      AND (v.narration NOT LIKE 'Sale Bill #%' OR v.narration IS NULL)
+      AND (j.source_type != 'sale' OR j.source_type IS NULL)
+      AND (v.narration NOT LIKE 'Sale Bill #% collection' OR v.narration IS NULL)
     ORDER BY v.id ASC
 ");
 $stBankRV->execute([$shiftStart, $shiftEnd]);
