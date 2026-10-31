@@ -346,6 +346,13 @@ function issueInventoryItemForSale(
     $newStock = $currentStock - $qty;
     $totalCogs = round($qty * $unitCogs, 2);
 
+    // Negative stock policy enforcement
+    $companySettings = getCompanySettings();
+    $allowNegative = ($companySettings['allow_negative_stock'] ?? '0') === '1';
+    if (!$allowNegative && $newStock < -0.0001) {
+        throw new RuntimeException("اسٹاک ناکافی ہے! پروڈکٹ '{$item['name']}' کا موجودہ اسٹاک {$currentStock} ہے جبکہ طلب کردہ مقدار {$qty} ہے۔ منفی اسٹاک فروخت کی اجازت سیٹنگز میں بند ہے۔");
+    }
+
     $upStmt = $db->prepare("UPDATE `items` SET stock_qty = ? WHERE id = ?");
     $upStmt->execute([$newStock, $itemId]);
 

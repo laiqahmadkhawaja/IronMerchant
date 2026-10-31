@@ -216,6 +216,31 @@ if ($action === 'create') {
             ];
         }
 
+        // Validate negative stock policy from settings
+        $companySettings = getCompanySettings();
+        $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
+
+        if (!$allowNegativeStock) {
+            $itemQtySums = [];
+            foreach ($validatedItems as $vIt) {
+                $itemQtySums[$vIt['item_id']] = ($itemQtySums[$vIt['item_id']] ?? 0.0) + $vIt['qty'];
+            }
+
+            foreach ($itemQtySums as $chkItemId => $totalReqQty) {
+                $stkStmt = $db->prepare("SELECT name, stock_qty, unit FROM items WHERE id = ? FOR UPDATE");
+                $stkStmt->execute([$chkItemId]);
+                $itemRow = $stkStmt->fetch();
+                if ($itemRow) {
+                    $availStock = (float)$itemRow['stock_qty'];
+                    if ($totalReqQty > $availStock) {
+                        $itemName = $itemRow['name'];
+                        $unit = $itemRow['unit'] ?? 'kg';
+                        throw new InvalidArgumentException("اسٹاک ناکافی ہے! پروڈکٹ '{$itemName}' کا موجودہ اسٹاک {$availStock} {$unit} ہے جبکہ بل میں طلب کردہ کل مقدار {$totalReqQty} {$unit} ہے۔ سسٹم سیٹنگز کے مطابق منفی اسٹاک فروخت کی اجازت نہیں ہے۔");
+                    }
+                }
+            }
+        }
+
         $additionalCharges = $labourCharge + $deliveryCharge;
         $grandTotal = round(($subtotal + $additionalCharges) - $discount, 2);
 
@@ -441,7 +466,12 @@ if ($action === 'create') {
 
     } catch (Exception $e) {
         $db->rollBack();
-        jsonError('Failed to post bill: ' . $e->getMessage());
+        $errMsg = $e->getMessage();
+        if ($e instanceof InvalidArgumentException || strpos($errMsg, 'اسٹاک ناکافی ہے') !== false) {
+            jsonError($errMsg);
+        } else {
+            jsonError('Failed to post bill: ' . $errMsg);
+        }
     }
 }
 

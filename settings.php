@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'company_landline'           => trim($_POST['company_landline'] ?? '055-4213194'),
                 'receipt_default_size'       => trim($_POST['receipt_default_size'] ?? 'thermal'),
                 'low_stock_alert'            => trim($_POST['low_stock_alert'] ?? '5000'),
+                'allow_negative_stock'       => (isset($_POST['allow_negative_stock']) && $_POST['allow_negative_stock'] === '1') ? '1' : '0',
                 'bill_terms_title_urdu'      => (!empty($_POST['bill_terms_title_urdu']) && strpos($_POST['bill_terms_title_urdu'], '?') === false) ? trim($_POST['bill_terms_title_urdu']) : 'شرائط و ضوابط برائے خریدار:',
                 'bill_terms_conditions_urdu' => (!empty($_POST['bill_terms_conditions_urdu']) && strpos($_POST['bill_terms_conditions_urdu'], '?') === false) ? trim($_POST['bill_terms_conditions_urdu']) : "مال گودام یا گاڑی سے نکلنے کے بعد وزن کی ذمہ داری خریدار پر ہوگی۔\nخریدا ہوا مال واپس یا تبدیل نہیں کیا جائے گا۔",
                 'bill_terms_conditions_en'   => trim($_POST['bill_terms_conditions_en'] ?? 'Goods once sold and loaded cannot be returned or exchanged.')
@@ -287,7 +288,7 @@ require_once __DIR__ . '/includes/header.php';
               <input type="text" name="company_landline" class="form-control" value="<?= htmlspecialchars($currentSettings['company_landline'] ?? '055-4213194') ?>">
             </div>
 
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-4">
               <label class="form-label">Default Invoice Print Format</label>
               <select name="receipt_default_size" class="form-select">
                 <option value="80" <?= in_array($currentSettings['receipt_default_size'] ?? '', ['80', 'thermal'], true) ? 'selected' : '' ?>>Thermal 80mm · 3" (72mm پرنٹ ڈتھ)</option>
@@ -297,9 +298,27 @@ require_once __DIR__ . '/includes/header.php';
               </select>
             </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label">Global Low Stock Warning Level (kg)</label>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Global Low Stock Warning (kg)</label>
               <input type="number" name="low_stock_alert" class="form-control" value="<?= htmlspecialchars($currentSettings['low_stock_alert'] ?? '5000') ?>">
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold">Negative Stock Sales (منفی اسٹاک سیل)</label>
+              <select name="allow_negative_stock" class="form-select">
+                <option value="0" <?= (($currentSettings['allow_negative_stock'] ?? '0') === '0') ? 'selected' : '' ?>>
+                  ❌ Disallow / Block (منفی اسٹاک کی ممانعت)
+                </option>
+                <option value="1" <?= (($currentSettings['allow_negative_stock'] ?? '0') === '1') ? 'selected' : '' ?>>
+                  ⚠️ Allow / Optional (منفی اسٹاک پر فروخت کی اجازت دیں)
+                </option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div class="form-text text-muted" style="font-size: 11.5px; margin-top: -6px;">
+                <i class="fa-solid fa-circle-info text-primary me-1"></i>
+                <strong>منفی اسٹاک فروخت کا اختیار:</strong> اگر ممانعت (Disallow) منتخب ہو تو گودام میں موجود اسٹاک سے زائد مقدار کی فروخت یا آؤٹ آف اسٹاک ہونے پر بل بنانا فوری طور پر روک دیا جائے گا۔ اگر اجازت (Allow) دی جائے تو منفی اسٹاک پر بھی بل بن سکے گا۔
+              </div>
             </div>
 
             <!-- Bill Print Terms & Conditions (شرائط و ضوابط) Section -->

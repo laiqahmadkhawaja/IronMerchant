@@ -51,9 +51,9 @@ function getNextDocNo(string $prefix, string $table, string $column): string {
     return sprintf("%s-%s-%05d", $prefix, $year, $seq);
 }
 
-function getCompanySettings(): array {
+function getCompanySettings(bool $refresh = false): array {
     static $settings = null;
-    if ($settings === null) {
+    if ($settings === null || $refresh) {
         $db = getDB();
         $stmt = $db->query("SELECT setting_key, setting_value FROM company_settings");
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];

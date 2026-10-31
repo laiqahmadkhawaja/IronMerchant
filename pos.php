@@ -10,6 +10,8 @@ $db = getDB();
 $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 $customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
+$companySettings = getCompanySettings();
+$allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -32,6 +34,10 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
   <span class="badge bg-white text-dark border"><kbd>F4</kbd> Freight</span>
   <span class="badge bg-white text-dark border"><kbd>F7</kbd> Paid Amount</span>
   <span class="badge bg-success text-white"><kbd>F8</kbd> or <kbd>Ctrl+Enter</kbd> Save &amp; Print</span>
+  <span class="badge <?= $allowNegativeStock ? 'bg-warning text-dark' : 'bg-primary text-white' ?> border">
+    <i class="fa-solid <?= $allowNegativeStock ? 'fa-triangle-exclamation' : 'fa-shield-halved' ?> me-1"></i>
+    Negative Stock: <?= $allowNegativeStock ? 'Allowed (منفی اسٹاک فعال)' : 'Disallowed (منفی اسٹاک بند)' ?>
+  </span>
 </div>
 
 <!-- Alert Area for Live POS notifications -->
@@ -50,9 +56,11 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
         <div class="col-12 col-md-5">
           <label class="form-label">Product Name / Saria / Girder</label>
           <select id="itemSelect" class="form-select" onchange="onItemSelectChange()">
-            <?php foreach ($items as $it): ?>
+            <?php foreach ($items as $it): 
+              $isOut = (float)$it['stock_qty'] <= 0;
+            ?>
               <option value="<?= $it['id'] ?>" data-price="<?= $it['sale_price'] ?>" data-stock="<?= $it['stock_qty'] ?>" data-unit="<?= $it['unit'] ?>">
-                <?= htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?>)
+                <?= htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
               </option>
             <?php endforeach; ?>
           </select>
@@ -254,6 +262,7 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
 </div>
 
 <script>
+  const ALLOW_NEGATIVE_STOCK = <?= $allowNegativeStock ? 'true' : 'false' ?>;
   let cart = [];
 
   function onItemSelectChange() {
@@ -327,6 +336,18 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
       if (qty <= 0) qtyInput.focus();
       else rateInput.focus();
       return;
+    }
+
+    const currentStock = parseFloat(opt.getAttribute('data-stock')) || 0;
+    if (!ALLOW_NEGATIVE_STOCK) {
+      const existingInCart = cart.filter(c => c.item_id === itemId).reduce((sum, c) => sum + c.qty, 0);
+      const totalRequested = existingInCart + qty;
+      if (totalRequested > currentStock) {
+        alert(`اسٹاک ناکافی ہے!\n\nپروڈکٹ: ${itemName}\nدستیاب اسٹاک: ${currentStock} ${unit}\nبل میں کل مقدار: ${totalRequested} ${unit}\n\nسسٹم سیٹنگز کے مطابق منفی اسٹاک فروخت کی ممانعت ہے۔ براہ کرم پہلے خریداری درج کریں۔`);
+        qtyInput.focus();
+        qtyInput.select();
+        return;
+      }
     }
 
     cart.push({
@@ -457,6 +478,26 @@ $accounts = $db->query("SELECT id, account_name, account_type FROM financial_acc
     }
 
     const btn = document.getElementById('btnSubmitBill');
+    if (!ALLOW_NEGATIVE_STOCK) {
+      const sel = document.getElementById('itemSelect');
+      const itemTotals = {};
+      for (const it of cart) {
+        itemTotals[it.item_id] = (itemTotals[it.item_id] || 0) + it.qty;
+      }
+      for (const it of cart) {
+        const opt = sel ? sel.querySelector(`option[value="${it.item_id}"]`) : null;
+        if (opt) {
+          const availStock = parseFloat(opt.getAttribute('data-stock')) || 0;
+          if (itemTotals[it.item_id] > availStock) {
+            alert(`اسٹاک ناکافی ہے!\n\nپروڈکٹ: ${it.name}\nدستیاب اسٹاک: ${availStock} ${it.unit}\nبل میں کل مقدار: ${itemTotals[it.item_id]} ${it.unit}\n\nسسٹم سیٹنگز کے مطابق منفی اسٹاک فروخت کی اجازت نہیں ہے۔`);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)<div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;"><i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save</div>';
+            return;
+          }
+        }
+      }
+    }
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Saving Bill...';
 
