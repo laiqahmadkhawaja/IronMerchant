@@ -418,7 +418,9 @@ $isThermal = ($size === '80' || $size === '58');
         <div class="ur th-footer">
           واپسی مال موصول و کھاتے میں درج کر لیا گیا۔
         </div>
-        <div class="th-credits" style="margin-top: 3px;">Software by Antigravity POS</div>
+        <div class="th-credits" style="margin-top: 3px; font-weight: 700;">*** Software By: KH Soft ***</div>
+        <div class="th-credits" style="margin-top: 1px;">0315-0709606 | 03056114800</div>
+        <div class="th-credits" style="margin-top: 1px;">laiqahmadkhawaja1604@gmail.com</div>
         <div style="letter-spacing: 2px; margin-top: 3px;">- - - - - - - - - - - - - -</div>
       </div>
     </div>
@@ -628,6 +630,13 @@ $isThermal = ($size === '80' || $size === '58');
         <strong>Party Signature (دستخط وصول کنندہ / پارٹی)</strong><br>
         <small class="text-muted"><?= htmlspecialchars($ret['party_name']) ?></small>
       </div>
+    </div>
+
+    <!-- Developer Promotion Footer -->
+    <div style="margin-top: 22px; text-align: center; font-size: 10px; color: #64748b; line-height: 1.4;">
+      <div style="font-weight: 700; color: #334155;">*** Software By: KH Soft ***</div>
+      <div>0315-0709606 | 03056114800</div>
+      <div>laiqahmadkhawaja1604@gmail.com</div>
     </div>
 
   </div>

@@ -836,6 +836,13 @@ if ($type === 'customer') {
         <small class="text-muted"><?= htmlspecialchars($entity['name'] ?? $entity['account_name'] ?? '') ?></small>
       </div>
     </div>
+    <!-- Developer Promotion Footer -->
+    <div style="margin-top: 22px; text-align: center; font-size: 10px; color: #64748b; line-height: 1.4;">
+      <div style="font-weight: 700; color: #334155;">*** Software By: KH Soft ***</div>
+      <div>0315-0709606 | 03056114800</div>
+      <div>laiqahmadkhawaja1604@gmail.com</div>
+    </div>
+
 
   </div>
 

@@ -445,7 +445,9 @@ foreach ($items as $it) {
       <div class="th-center" style="margin-top: 6px;">
         <div class="ur th-footer">وزن کانٹا اور سٹاک گودام میں درست وصول پایا گیا۔</div>
         <div class="th-footer" style="margin-top: 3px;">*** STOCK INWARD ACKNOWLEDGED ***</div>
-        <div class="th-credits" style="margin-top: 2px;">Software by Antigravity POS</div>
+        <div class="th-credits" style="margin-top: 2px; font-weight: 700;">*** Software By: KH Soft ***</div>
+        <div class="th-credits" style="margin-top: 1px;">0315-0709606 | 03056114800</div>
+        <div class="th-credits" style="margin-top: 1px;">laiqahmadkhawaja1604@gmail.com</div>
         <div style="letter-spacing: 2px; margin-top: 2px;">- - - - - - - - - - - - - -</div>
       </div>
     </div>
@@ -719,6 +721,13 @@ foreach ($items as $it) {
       <!-- Bottom Tagline -->
       <div class="text-center mt-4 text-muted small ur" style="font-size: 11.5px;">
         مال تول کر پورا اور تسلی بخش حالت میں گودام میں داخل کیا گیا — ظفر برادرز آئرن مرچنٹس گوجرانوالہ
+      </div>
+
+      <!-- Developer Promotion Footer -->
+      <div style="margin-top: 12px; text-align: center; font-size: 10px; color: #64748b; line-height: 1.4;">
+        <div style="font-weight: 700; color: #334155;">*** Software By: KH Soft ***</div>
+        <div>0315-0709606 | 03056114800</div>
+        <div>laiqahmadkhawaja1604@gmail.com</div>
       </div>
 
     </div>
