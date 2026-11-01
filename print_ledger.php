@@ -77,7 +77,11 @@ if ($type === 'customer') {
     $stVPre->execute([$id, $startDate]);
     $preVouchers = (float)$stVPre->fetchColumn();
 
-    $periodOpeningBalance = $initOpening + $preSales - $preVouchers;
+        $stRetPre = $pdo->prepare("SELECT COALESCE(SUM(net_amount), 0) FROM returns WHERE party_id = ? AND return_type = 'sale_return' AND refund_type = 'credit_to_khata' AND return_date < ? AND status = 'posted'");
+    $stRetPre->execute([$id, $startDate]);
+    $preReturns = (float)$stRetPre->fetchColumn();
+
+    $periodOpeningBalance = $initOpening + $preSales - $preVouchers - $preReturns;
 
     // 2. Fetch Period Sales (Debit to customer)
     $stSales = $pdo->prepare("
@@ -184,7 +188,11 @@ if ($type === 'customer') {
     $stVPre->execute([$id, $startDate]);
     $preVouchers = (float)$stVPre->fetchColumn();
 
-    $periodOpeningBalance = $initOpening + $prePurchases - $preVouchers;
+        $stRetPre = $pdo->prepare("SELECT COALESCE(SUM(net_amount), 0) FROM returns WHERE party_id = ? AND return_type = 'purchase_return' AND refund_type = 'credit_to_khata' AND return_date < ? AND status = 'posted'");
+    $stRetPre->execute([$id, $startDate]);
+    $preReturns = (float)$stRetPre->fetchColumn();
+
+    $periodOpeningBalance = $initOpening + $prePurchases - $preVouchers - $preReturns;
 
     // 2. Fetch Period Purchases (Credit to supplier)
     $stPur = $pdo->prepare("
@@ -303,7 +311,19 @@ if ($type === 'customer') {
     $stPreTrfOut->execute([$id, $startDate]);
     $preTrfOut = (float)$stPreTrfOut->fetchColumn();
 
-    $periodOpeningBalance = $initBal + $preRV - $prePV - $preEV + $preTrfIn - $preTrfOut;
+        $stPreRet = $pdo->prepare("
+        SELECT 
+            COALESCE(SUM(CASE WHEN return_type = 'purchase_return' THEN net_amount ELSE 0 END), 0) AS pre_in,
+            COALESCE(SUM(CASE WHEN return_type = 'sale_return' THEN net_amount ELSE 0 END), 0) AS pre_out
+        FROM returns
+        WHERE account_id = ? AND refund_type != 'credit_to_khata' AND status = 'posted' AND return_date < ?
+    ");
+    $stPreRet->execute([$id, $startDate]);
+    $preRet = $stPreRet->fetch();
+    $preRetIn  = (float)($preRet['pre_in'] ?? 0);
+    $preRetOut = (float)($preRet['pre_out'] ?? 0);
+
+    $periodOpeningBalance = $initBal + $preRV - $prePV - $preEV + $preTrfIn - $preTrfOut + $preRetIn - $preRetOut;
 
     // Fetch Receipts
     $stRV = $pdo->prepare("
@@ -364,7 +384,21 @@ if ($type === 'customer') {
     $stTrfOut->execute([$id, $startDate, $endDate]);
     $trfOutEntries = $stTrfOut->fetchAll();
 
-    $allRaw = array_merge($rEntries, $pEntries, $eEntries, $trfInEntries, $trfOutEntries);
+        // Fetch Return Refunds
+    $stRet = $pdo->prepare("
+        SELECT r.id, r.created_at, r.return_date AS trans_date, r.return_no AS doc_no,
+               IF(r.return_type = 'sale_return', 'Sale Return Refund', 'Purchase Return Refund') AS trans_type,
+               CONCAT(IF(r.return_type = 'sale_return', 'Refund paid to ', 'Refund received from '), COALESCE(p.name, 'Party'), ' (Return #', r.return_no, ')', IF(r.reason != '', CONCAT(' - ', r.reason), '')) AS description,
+               IF(r.return_type = 'purchase_return', r.net_amount, 0.0) AS inflow,
+               IF(r.return_type = 'sale_return', r.net_amount, 0.0) AS outflow
+        FROM returns r
+        JOIN parties p ON r.party_id = p.id
+        WHERE r.account_id = ? AND r.refund_type != 'credit_to_khata' AND r.status = 'posted' AND r.return_date BETWEEN ? AND ?
+    ");
+    $stRet->execute([$id, $startDate, $endDate]);
+    $retEntries = $stRet->fetchAll();
+
+    $allRaw = array_merge($rEntries, $pEntries, $eEntries, $trfInEntries, $trfOutEntries, $retEntries);
     foreach ($allRaw as $item) {
         $ledgerEntries[] = [
             'date'       => $item['trans_date'],

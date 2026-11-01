@@ -155,7 +155,12 @@ $stVPre = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM vouchers WHERE par
 $stVPre->execute([$custId, $startDate]);
 $preVouchers = (float)$stVPre->fetchColumn();
 
-$periodOpeningBalance = $initOpening + $preSales - $preVouchers;
+// Returns before startDate
+$stRetPre = $pdo->prepare("SELECT COALESCE(SUM(net_amount), 0) FROM returns WHERE party_id = ? AND return_type = 'sale_return' AND refund_type = 'credit_to_khata' AND return_date < ? AND status = 'posted'");
+$stRetPre->execute([$custId, $startDate]);
+$preReturns = (float)$stRetPre->fetchColumn();
+
+$periodOpeningBalance = $initOpening + $preSales - $preVouchers - $preReturns;
 
 // 2. Fetch Transactions in period
 // Sales
@@ -196,6 +201,26 @@ foreach ($periodVouchers as $pv) {
         'created_at'  => $pv['created_at'] ?? '',
         'priority'    => 2,
         'link'        => 'vouchers.php?search=' . $pv['doc_no']
+    ];
+}
+
+// Returns in period
+$stRet = $pdo->prepare("SELECT id, return_no AS doc_no, return_date AS trans_date, 'Sales Return (Credit Note)' AS trans_type, 0.0 AS debit, net_amount AS credit, reason AS description, journal_id, created_at FROM returns WHERE party_id = ? AND return_type = 'sale_return' AND refund_type = 'credit_to_khata' AND return_date BETWEEN ? AND ? AND status = 'posted'");
+$stRet->execute([$custId, $startDate, $endDate]);
+$periodReturns = $stRet->fetchAll();
+
+foreach ($periodReturns as $pr) {
+    $ledgerEntries[] = [
+        'date'        => $pr['trans_date'],
+        'doc_no'      => $pr['doc_no'],
+        'type'        => 'Sales Return (Credit Note)',
+        'desc'        => 'Return Credit Note adjustment' . (!empty($pr['description']) ? ' (' . $pr['description'] . ')' : ''),
+        'debit'       => 0.0,
+        'credit'      => (float)$pr['credit'],
+        'journal_id'  => (int)($pr['journal_id'] ?? 0),
+        'created_at'  => $pr['created_at'] ?? '',
+        'priority'    => 2,
+        'link'        => 'print_return.php?id=' . $pr['id']
     ];
 }
 

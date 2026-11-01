@@ -35,7 +35,44 @@ if (!$account) {
 $startDate = trim($_GET['start_date'] ?? date('Y-m-01'));
 $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
 
-// Gather all vouchers & transfers touching this account
+// 0. Calculate Opening Balance before $startDate
+$initBal = (float)$account['opening_balance'];
+
+$stPreRV = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM vouchers WHERE account_id = ? AND voucher_type = 'RV' AND status = 'posted' AND voucher_date < ?");
+$stPreRV->execute([$accId, $startDate]);
+$preRV = (float)$stPreRV->fetchColumn();
+
+$stPrePV = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM vouchers WHERE account_id = ? AND voucher_type = 'PV' AND status = 'posted' AND voucher_date < ?");
+$stPrePV->execute([$accId, $startDate]);
+$prePV = (float)$stPrePV->fetchColumn();
+
+$stPreEV = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE payment_account_id = ? AND expense_date < ?");
+$stPreEV->execute([$accId, $startDate]);
+$preEV = (float)$stPreEV->fetchColumn();
+
+$stPreTIn = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM inter_account_transfers WHERE to_account_id = ? AND status = 'posted' AND transfer_date < ?");
+$stPreTIn->execute([$accId, $startDate]);
+$preTIn = (float)$stPreTIn->fetchColumn();
+
+$stPreTOut = $pdo->prepare("SELECT COALESCE(SUM(amount + fee_amount), 0) FROM inter_account_transfers WHERE from_account_id = ? AND status = 'posted' AND transfer_date < ?");
+$stPreTOut->execute([$accId, $startDate]);
+$preTOut = (float)$stPreTOut->fetchColumn();
+
+$stPreRet = $pdo->prepare("
+    SELECT 
+        COALESCE(SUM(CASE WHEN return_type = 'purchase_return' THEN net_amount ELSE 0 END), 0) AS pre_in,
+        COALESCE(SUM(CASE WHEN return_type = 'sale_return' THEN net_amount ELSE 0 END), 0) AS pre_out
+    FROM returns
+    WHERE account_id = ? AND refund_type != 'credit_to_khata' AND status = 'posted' AND return_date < ?
+");
+$stPreRet->execute([$accId, $startDate]);
+$preRet = $stPreRet->fetch();
+$preRetIn  = (float)($preRet['pre_in'] ?? 0);
+$preRetOut = (float)($preRet['pre_out'] ?? 0);
+
+$periodOpeningBalance = $initBal + $preRV - $prePV - $preEV + $preTIn - $preTOut + $preRetIn - $preRetOut;
+
+// Gather all vouchers, transfers & returns touching this account
 // 1. Receipts (RV) -> Inflow (Debit to Cash/Bank)
 $stRV = $pdo->prepare("
     SELECT v.id, v.created_at, v.voucher_date AS trans_date, v.voucher_no AS doc_no, 'Receipt (وصولی)' AS trans_type,
@@ -97,7 +134,21 @@ $stTOut->execute([$accId, $startDate, $endDate]);
 $tOutEntries = $stTOut->fetchAll();
 
 // Merge and sort: Date ASC -> Inflows (1) -> Outflows (2) -> Zero-movement (3) -> Time/Doc ASC
-$allEntries = array_merge($rEntries, $pEntries, $eEntries, $tInEntries, $tOutEntries);
+// 6. Returns Refund (Cash / Bank) -> Sale Return is Outflow, Purchase Return is Inflow
+$stRet = $pdo->prepare("
+    SELECT r.id, r.created_at, r.return_date AS trans_date, r.return_no AS doc_no,
+           IF(r.return_type = 'sale_return', 'Sale Return (واپسی کسٹمر)', 'Purchase Return (واپسی سپلائر)') AS trans_type,
+           CONCAT(IF(r.return_type = 'sale_return', 'Refund paid to ', 'Refund received from '), COALESCE(p.name, 'Party'), ' (Return #', r.return_no, ')', IF(r.reason != '', CONCAT(' - ', r.reason), '')) AS description,
+           IF(r.return_type = 'purchase_return', r.net_amount, 0.0) AS inflow,
+           IF(r.return_type = 'sale_return', r.net_amount, 0.0) AS outflow
+    FROM returns r
+    JOIN parties p ON r.party_id = p.id
+    WHERE r.account_id = ? AND r.refund_type != 'credit_to_khata' AND r.status = 'posted' AND r.return_date BETWEEN ? AND ?
+");
+$stRet->execute([$accId, $startDate, $endDate]);
+$retEntries = $stRet->fetchAll();
+
+$allEntries = array_merge($rEntries, $pEntries, $eEntries, $tInEntries, $tOutEntries, $retEntries);
 usort($allEntries, function($a, $b) {
     // 1. Transaction Date
     $dateCmp = strcmp($a['trans_date'], $b['trans_date']);
@@ -124,7 +175,7 @@ usort($allEntries, function($a, $b) {
 });
 
 // Running Balances
-$runningBal = (float)$account['opening_balance'];
+$runningBal = $periodOpeningBalance;
 $totalInflow = 0.0;
 $totalOutflow = 0.0;
 foreach ($allEntries as &$ent) {
@@ -221,6 +272,18 @@ require_once __DIR__ . '/includes/header.php';
             </tr>
           </thead>
           <tbody>
+            <!-- Opening Balance Row -->
+            <tr style="background: #f1f5f9; font-weight: 600;">
+              <td style="padding: 12px 14px;"><?= htmlspecialchars($startDate) ?></td>
+              <td style="padding: 12px 14px;">OPENING</td>
+              <td style="padding: 12px 14px;"><span class="badge bg-secondary">Opening</span></td>
+              <td style="padding: 12px 14px;">Opening Balance as of <?= htmlspecialchars($startDate) ?></td>
+              <td class="text-end" style="padding: 12px 14px;">-</td>
+              <td class="text-end" style="padding: 12px 14px;">-</td>
+              <td class="text-end" style="padding: 12px 14px; font-weight: 700; color: <?= $periodOpeningBalance >= 0 ? 'var(--nv)' : 'var(--rd)' ?>;">
+                <?= formatCurrency($periodOpeningBalance) ?>
+              </td>
+            </tr>
             <?php if (empty($allEntries)): ?>
               <tr>
                 <td colspan="7" class="text-center py-4 text-muted">No transactions found for this account in the selected period.</td>
