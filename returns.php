@@ -32,7 +32,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
         $itemId      = (int)($_POST['item_id'] ?? 0);
         $qty         = (float)($_POST['qty'] ?? 0);
         $unitRate    = (float)($_POST['unit_rate'] ?? 0);
-        $deductions  = (float)($_POST['deduction_charges'] ?? 0);
+        $labourDeduction  = max(0.0, (float)($_POST['labour_deduction'] ?? 0));
+        $freightDeduction = max(0.0, (float)($_POST['freight_deduction'] ?? 0));
+        $cuttingDeduction = max(0.0, (float)($_POST['cutting_deduction'] ?? 0));
+        $deductions       = round($labourDeduction + $freightDeduction + $cuttingDeduction, 2);
+        if ($deductions <= 0 && !empty($_POST['deduction_charges'])) {
+            $deductions = max(0.0, (float)$_POST['deduction_charges']);
+        }
         $refundType  = trim($_POST['refund_type'] ?? 'credit_to_khata');
         $accountId   = (int)($_POST['financial_account_id'] ?? 0);
         $refNo       = trim($_POST['reference_no'] ?? '');
@@ -100,14 +106,53 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
 
                 if ($returnType === 'sale_return') {
                     // Customer returns goods to us:
-                    // Relieve sales revenue: Debit Sales Revenue (or Discount/Contra-Revenue)
+                    // Relieve sales revenue: Debit Sales Revenue (gross amount)
                     $jLines[] = [
                         'account_id'  => COA_SALES_REVENUE,
                         'party_id'    => null,
-                        'debit'       => $netAmount,
+                        'debit'       => $grossAmount,
                         'credit'      => 0.0,
                         'description' => "Sales Return: {$item['name']} from {$party['name']} ($returnNo)"
                     ];
+
+                    // Credit deductions retained as income
+                    if ($labourDeduction > 0) {
+                        $jLines[] = [
+                            'account_id'  => COA_SERVICE_INCOME,
+                            'party_id'    => null,
+                            'debit'       => 0.0,
+                            'credit'      => $labourDeduction,
+                            'description' => "Labour deduction on return #$returnNo from {$party['name']}"
+                        ];
+                    }
+                    if ($freightDeduction > 0) {
+                        $jLines[] = [
+                            'account_id'  => COA_DELIVERY_INCOME,
+                            'party_id'    => null,
+                            'debit'       => 0.0,
+                            'credit'      => $freightDeduction,
+                            'description' => "Freight deduction on return #$returnNo from {$party['name']}"
+                        ];
+                    }
+                    if ($cuttingDeduction > 0) {
+                        $jLines[] = [
+                            'account_id'  => COA_SERVICE_INCOME,
+                            'party_id'    => null,
+                            'debit'       => 0.0,
+                            'credit'      => $cuttingDeduction,
+                            'description' => "Cutting deduction on return #$returnNo from {$party['name']}"
+                        ];
+                    }
+                    $otherDeduction = round($deductions - ($labourDeduction + $freightDeduction + $cuttingDeduction), 2);
+                    if ($otherDeduction > 0) {
+                        $jLines[] = [
+                            'account_id'  => COA_SERVICE_INCOME,
+                            'party_id'    => null,
+                            'debit'       => 0.0,
+                            'credit'      => $otherDeduction,
+                            'description' => "Damage/Restocking deduction on return #$returnNo from {$party['name']}"
+                        ];
+                    }
 
                     // Refund destination:
                     if ($refundType === 'credit_to_khata') {
@@ -166,13 +211,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
                     $insRet = $pdo->prepare("
                         INSERT INTO returns (
                             return_no, return_type, return_date, party_id, reference_no,
-                            total_qty, subtotal, deduction_charges, net_amount,
+                            total_qty, subtotal, labour_deduction, freight_deduction, cutting_deduction, deduction_charges, net_amount,
                             refund_type, account_id, journal_id, status, reason, notes, created_by
-                        ) VALUES (?, 'sale_return', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?)
+                        ) VALUES (?, 'sale_return', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?)
                     ");
                     $insRet->execute([
                         $returnNo, $returnDate, $partyId, $refNo,
-                        $qty, $grossAmount, $deductions, $netAmount,
+                        $qty, $grossAmount, $labourDeduction, $freightDeduction, $cuttingDeduction, $deductions, $netAmount,
                         $refundType, ($refundType === 'credit_to_khata' ? null : $accountId),
                         $journalId, $reason, $notes, $currentUser['id'] ?? null
                     ]);
@@ -216,12 +261,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
                         ];
                     }
 
+                    // If supplier charged return deductions, record as service/handling deduction
+                    if ($deductions > 0) {
+                        $jLines[] = [
+                            'account_id'  => COA_SERVICE_INCOME,
+                            'party_id'    => null,
+                            'debit'       => $deductions,
+                            'credit'      => 0.0,
+                            'description' => "Deduction/Handling charged by mill on return ($returnNo)"
+                        ];
+                    }
+
                     // Relieve inventory: Credit Inventory
                     $jLines[] = [
                         'account_id'  => COA_INVENTORY,
                         'party_id'    => null,
                         'debit'       => 0.0,
-                        'credit'      => $netAmount,
+                        'credit'      => $grossAmount,
                         'description' => "Inventory relief on supplier return: {$qty} {$item['unit']} @ {$unitRate}"
                     ];
 
@@ -238,13 +294,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
                     $insRet = $pdo->prepare("
                         INSERT INTO returns (
                             return_no, return_type, return_date, party_id, reference_no,
-                            total_qty, subtotal, deduction_charges, net_amount,
+                            total_qty, subtotal, labour_deduction, freight_deduction, cutting_deduction, deduction_charges, net_amount,
                             refund_type, account_id, journal_id, status, reason, notes, created_by
-                        ) VALUES (?, 'purchase_return', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?)
+                        ) VALUES (?, 'purchase_return', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?)
                     ");
                     $insRet->execute([
                         $returnNo, $returnDate, $partyId, $refNo,
-                        $qty, $grossAmount, $deductions, $netAmount,
+                        $qty, $grossAmount, $labourDeduction, $freightDeduction, $cuttingDeduction, $deductions, $netAmount,
                         $refundType, ($refundType === 'credit_to_khata' ? null : $accountId),
                         $journalId, $reason, $notes, $currentUser['id'] ?? null
                     ]);
@@ -609,7 +665,7 @@ $activeShift = getActiveShift($pdo);
             </div>
 
             <!-- Return Quantity in KG -->
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-4">
               <label class="form-label fw-bold">Return Weight / Qty (وزن) <span class="text-danger">*</span></label>
               <div class="input-group">
                 <input type="number" step="0.01" min="0.01" name="qty" id="retQty" class="form-control" placeholder="0.00" oninput="calculateReturnTotal()" required>
@@ -618,7 +674,7 @@ $activeShift = getActiveShift($pdo);
             </div>
 
             <!-- Return Rate per KG -->
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-4">
               <label class="form-label fw-bold">Return Rate (ریٹ فی کلو) <span class="text-danger">*</span></label>
               <div class="input-group">
                 <span class="input-group-text">Rs</span>
@@ -626,20 +682,74 @@ $activeShift = getActiveShift($pdo);
               </div>
             </div>
 
-            <!-- Deductions / Restocking Fee -->
-            <div class="col-12 col-md-3">
-              <label class="form-label fw-bold">Deductions / Damage Fee</label>
-              <div class="input-group">
-                <span class="input-group-text">Rs</span>
-                <input type="number" step="0.01" min="0.00" name="deduction_charges" id="retDeduction" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+            <!-- Return Gross Value Display -->
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold">Return Gross Value (کل مال رقم)</label>
+              <div class="form-control d-flex align-items-center justify-content-end bg-light" style="min-height: 38px; font-weight: 700;">
+                <span id="displayGrossAmount" class="font-num text-dark">Rs 0.00</span>
+              </div>
+            </div>
+
+            <!-- 3 Types of Return Deductions Box -->
+            <div class="col-12">
+              <div class="p-3 bg-light rounded-3 border">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="fw-bold" style="font-size: 13px; color: #1e293b;">
+                    <i class="fa-solid fa-scissors me-1 text-danger"></i> Return Deductions (واپسی کٹوتیاں — لیبر، کرایہ، کٹائی)
+                  </span>
+                  <span class="text-muted" style="font-size: 11px;">Enter deduction amounts (if applicable)</span>
+                </div>
+                <div class="row g-2">
+                  <!-- 1. Labour Deduction -->
+                  <div class="col-12 col-md-4">
+                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
+                      <span class="fw-semibold">1. Labour / Crane (لیبر کٹوتی)</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">Rs</span>
+                      <input type="number" step="0.01" min="0.00" name="labour_deduction" id="retLabour" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                    </div>
+                  </div>
+
+                  <!-- 2. Freight Deduction -->
+                  <div class="col-12 col-md-4">
+                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
+                      <span class="fw-semibold">2. Freight / Delivery (کرایہ کٹوتی)</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">Rs</span>
+                      <input type="number" step="0.01" min="0.00" name="freight_deduction" id="retFreight" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                    </div>
+                  </div>
+
+                  <!-- 3. Cutting Deduction -->
+                  <div class="col-12 col-md-4">
+                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
+                      <span class="fw-semibold">3. Cutting (کٹائی کٹوتی)</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">Rs</span>
+                      <input type="number" step="0.01" min="0.00" name="cutting_deduction" id="retCutting" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hidden field for legacy total deduction compatibility -->
+                <input type="hidden" name="deduction_charges" id="retDeduction" value="0.00">
+
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top" style="font-size: 12px;">
+                  <span class="text-muted">Total Deductions (کل کٹوتیاں):</span>
+                  <span id="displayTotalDeductions" class="font-num fw-bold text-danger">Rs 0.00</span>
+                </div>
               </div>
             </div>
 
             <!-- Net Refund / Credit Calculation Display -->
-            <div class="col-12 col-md-3">
-              <label class="form-label fw-bold">Net Refundable Amount (صافی رقم)</label>
-              <div class="form-control d-flex align-items-center justify-content-end bg-light" style="min-height: 44px; font-weight: 700;">
-                <span id="displayNetAmount" class="font-num fs-5 text-primary">Rs 0.00</span>
+            <div class="col-12">
+              <label class="form-label fw-bold">Net Refundable / Credit Value (صافی قابل واپسی رقم)</label>
+              <div class="form-control d-flex align-items-center justify-content-between bg-light" style="min-height: 44px; font-weight: 700; border: 2px solid #0d6efd;">
+                <span class="text-muted" style="font-size: 12px;">Gross Value − Total Deductions</span>
+                <span id="displayNetAmount" class="font-num fs-4 text-primary">Rs 0.00</span>
               </div>
             </div>
 
@@ -727,10 +837,26 @@ function handleItemSelect(select) {
 function calculateReturnTotal() {
   const qty = parseFloat(document.getElementById('retQty').value) || 0;
   const rate = parseFloat(document.getElementById('retRate').value) || 0;
-  const ded = parseFloat(document.getElementById('retDeduction').value) || 0;
+  const labour = parseFloat(document.getElementById('retLabour')?.value) || 0;
+  const freight = parseFloat(document.getElementById('retFreight')?.value) || 0;
+  const cutting = parseFloat(document.getElementById('retCutting')?.value) || 0;
+  
   const gross = qty * rate;
-  const net = Math.max(0, gross - ded);
-  document.getElementById('displayNetAmount').innerText = 'Rs ' + net.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const totalDed = labour + freight + cutting;
+  const net = Math.max(0, gross - totalDed);
+
+  const dedInput = document.getElementById('retDeduction');
+  if (dedInput) { dedInput.value = totalDed.toFixed(2); }
+
+  if (document.getElementById('displayGrossAmount')) {
+    document.getElementById('displayGrossAmount').innerText = 'Rs ' + gross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (document.getElementById('displayTotalDeductions')) {
+    document.getElementById('displayTotalDeductions').innerText = 'Rs ' + totalDed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (document.getElementById('displayNetAmount')) {
+    document.getElementById('displayNetAmount').innerText = 'Rs ' + net.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 }
 
 function toggleRefundAccount(method) {

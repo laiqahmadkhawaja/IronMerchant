@@ -42,6 +42,16 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
             $db->exec("ALTER TABLE `sales` ADD COLUMN `cutting_charge` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `delivery_charge`");
         }
         }
+
+        // Auto-heal returns deduction columns if missing
+        $rCol = $db->query("SHOW COLUMNS FROM `returns` LIKE 'cutting_deduction'")->fetch();
+        if (!$rCol) {
+            $db->exec("ALTER TABLE `returns` 
+                ADD COLUMN `labour_deduction` DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `subtotal`,
+                ADD COLUMN `freight_deduction` DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `labour_deduction`,
+                ADD COLUMN `cutting_deduction` DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `freight_deduction`
+            ");
+        }
     } catch (Throwable $e) {
         error_log("Failed to auto-heal chart of accounts: " . $e->getMessage());
     }

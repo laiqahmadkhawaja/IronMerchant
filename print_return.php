@@ -387,7 +387,25 @@ $isThermal = ($size === '80' || $size === '58');
         <span>Goods Value:</span>
         <span class="font-num"><?= number_format((float)$ret['subtotal'], 2) ?></span>
       </div>
-      <?php if ((float)$ret['deduction_charges'] > 0): ?>
+      <?php if ((float)($ret['labour_deduction'] ?? 0) > 0): ?>
+        <div class="th-row th-meta">
+          <span>Labour Deduction (لیبر):</span>
+          <span class="font-num">− <?= number_format((float)$ret['labour_deduction'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
+        <div class="th-row th-meta">
+          <span>Freight Deduction (کرایہ):</span>
+          <span class="font-num">− <?= number_format((float)$ret['freight_deduction'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ((float)($ret['cutting_deduction'] ?? 0) > 0): ?>
+        <div class="th-row th-meta">
+          <span>Cutting Deduction (کٹائی):</span>
+          <span class="font-num">− <?= number_format((float)$ret['cutting_deduction'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ((float)$ret['deduction_charges'] > 0 && ((float)($ret['labour_deduction'] ?? 0) <= 0 && (float)($ret['freight_deduction'] ?? 0) <= 0 && (float)($ret['cutting_deduction'] ?? 0) <= 0)): ?>
         <div class="th-row th-meta">
           <span>Deduction / Cutting:</span>
           <span class="font-num">− <?= number_format((float)$ret['deduction_charges'], 2) ?></span>
@@ -601,9 +619,39 @@ $isThermal = ($size === '80' || $size === '58');
             <strong class="font-num"><?= formatMoney($ret['subtotal']) ?></strong>
           </div>
 
-          <?php if ((float)$ret['deduction_charges'] > 0): ?>
+          <?php if ((float)($ret['labour_deduction'] ?? 0) > 0): ?>
             <div class="d-flex justify-content-between align-items-center py-1 text-danger">
-              <span>Damage / Restocking Deductions:</span>
+              <div class="d-flex align-items-center gap-1">
+                <span>Labour / Crane Deduction</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">لیبر کٹوتی</span>
+              </div>
+              <span class="font-num fw-bold">− <?= formatMoney($ret['labour_deduction']) ?></span>
+            </div>
+          <?php endif; ?>
+
+          <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
+            <div class="d-flex justify-content-between align-items-center py-1 text-danger">
+              <div class="d-flex align-items-center gap-1">
+                <span>Freight / Delivery Deduction</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">کرایہ / گاڑی کٹوتی</span>
+              </div>
+              <span class="font-num fw-bold">− <?= formatMoney($ret['freight_deduction']) ?></span>
+            </div>
+          <?php endif; ?>
+
+          <?php if ((float)($ret['cutting_deduction'] ?? 0) > 0): ?>
+            <div class="d-flex justify-content-between align-items-center py-1 text-danger">
+              <div class="d-flex align-items-center gap-1">
+                <span>Cutting Deduction</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">کٹائی کٹوتی</span>
+              </div>
+              <span class="font-num fw-bold">− <?= formatMoney($ret['cutting_deduction']) ?></span>
+            </div>
+          <?php endif; ?>
+
+          <?php if ((float)$ret['deduction_charges'] > 0 && ((float)($ret['labour_deduction'] ?? 0) <= 0 && (float)($ret['freight_deduction'] ?? 0) <= 0 && (float)($ret['cutting_deduction'] ?? 0) <= 0)): ?>
+            <div class="d-flex justify-content-between align-items-center py-1 text-danger">
+              <span>Total Deductions / کٹوتیاں:</span>
               <span class="font-num fw-bold">− <?= formatMoney($ret['deduction_charges']) ?></span>
             </div>
           <?php endif; ?>
