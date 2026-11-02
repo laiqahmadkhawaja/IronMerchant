@@ -84,6 +84,7 @@ if ($isWalkIn) {
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
+$compLandline = trim((string)($company['company_landline'] ?? ''));
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
@@ -427,8 +428,13 @@ foreach ($items as $it) {
         </div>
         <div class="th-sub" style="margin-top: 2px;">Gujranwala Steel Group of Industry</div>
         <div class="th-sub">Deals in: Grade 40/60 Steel &amp; G.I Wire</div>
-        <div class="th-sub" style="margin-top: 3px;">
-          <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compPhone) ?>
+        <?php if (!empty($compLandline)): ?>
+          <div class="th-sub" style="margin-top: 2px;">
+            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+          </div>
+        <?php endif; ?>
+        <div class="th-sub" style="margin-top: 2px;">
+          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
         </div>
         <div class="th-sub"><?= htmlspecialchars($compAddress) ?></div>
       </div>
@@ -610,11 +616,10 @@ foreach ($items as $it) {
               </div>
             <?php endif; ?>
             <div style="font-size: <?= $size === 'A5' ? '10.5px' : '11.5px' ?>; line-height: 1.5; color: #1e293b; margin-top: 3px;">
-              <i class="fa-solid fa-phone text-primary me-1"></i>
-              <strong><?= htmlspecialchars($compPhone) ?></strong>
-              <?php if (!empty($company['company_landline'])): ?>
-                <span class="text-muted d-block d-sm-inline" style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>;">· <?= htmlspecialchars($company['company_landline']) ?></span>
+              <?php if (!empty($compLandline)): ?>
+                <div><i class="fa-solid fa-phone text-primary me-1"></i> <strong><?= htmlspecialchars($compLandline) ?></strong></div>
               <?php endif; ?>
+              <div><i class="fa-solid fa-mobile-screen text-primary me-1"></i> <?= htmlspecialchars($compPhone) ?></div>
             </div>
             <div class="mt-2">
               <span class="badge bg-primary text-uppercase" style="font-size: <?= $size === 'A5' ? '9.5px' : '10.5px' ?>; letter-spacing: 0.5px; padding: 4px 9px; font-weight: 700; box-shadow: 0 1px 3px rgba(20,48,122,0.25);">

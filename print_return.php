@@ -44,6 +44,7 @@ $items = $itemsStmt->fetchAll();
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
+$compLandline = trim((string)($company['company_landline'] ?? ''));
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
@@ -331,8 +332,13 @@ $isThermal = ($size === '80' || $size === '58');
         <div class="th-sub" style="margin-top: 2px; text-transform: uppercase;">
           *** <?= htmlspecialchars($docTitle) ?> ***
         </div>
+        <?php if (!empty($compLandline)): ?>
+          <div class="th-sub" style="margin-top: 2px;">
+            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+          </div>
+        <?php endif; ?>
         <div class="th-sub" style="margin-top: 2px;">
-          <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compPhone) ?>
+          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
         </div>
       </div>
 
@@ -466,7 +472,10 @@ $isThermal = ($size === '80' || $size === '58');
           </div>
         </div>
         <div class="text-end" style="font-size: 11.5px; line-height: 1.6;">
-          <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compPhone) ?></strong></div>
+          <?php if (!empty($compLandline)): ?>
+            <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compLandline) ?></strong></div>
+          <?php endif; ?>
+          <div><i class="fa-solid fa-mobile-screen me-1 text-primary"></i> <?= htmlspecialchars($compPhone) ?></div>
           <div><i class="fa-solid fa-location-dot me-1 text-primary"></i> <?= htmlspecialchars($compAddress) ?></div>
           <div class="badge bg-danger text-uppercase mt-1" style="font-size: 10.5px; letter-spacing: 0.5px; padding: 4px 8px;">
             <?= htmlspecialchars($docBadge) ?>
