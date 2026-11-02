@@ -376,26 +376,26 @@ foreach ($items as $it) {
 
       <!-- Item Table Header (5 columns in one line: BDL/PC, ITEM, QTY, RATE, TOTAL) -->
       <div class="th-row th-meta" style="font-weight: 700;">
-        <span style="width: 11%; text-align: left;">BDL/PC</span>
-        <span style="width: 27%; text-align: left;">ITEM</span>
-        <span style="width: 16%; text-align: right; padding-right: 4px;">QTY</span>
-        <span style="width: 18%; text-align: right; padding-right: 4px;">RATE</span>
-        <span style="width: 28%; text-align: right;">TOTAL</span>
+        <span style="width: 16%; text-align: left;">BDL/PC</span>
+        <span style="width: 26%; text-align: left; padding-right: 2px;">ITEM</span>
+        <span style="width: 15%; text-align: right; padding-right: 3px;">QTY</span>
+        <span style="width: 17%; text-align: right; padding-right: 3px;">RATE</span>
+        <span style="width: 26%; text-align: right;">TOTAL</span>
       </div>
       <div class="th-line"></div>
 
       <!-- Items List (Single line per item, 5 columns, RTL protected, spacious gaps) -->
       <?php foreach ($items as $it): ?>
         <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
-          <span style="width: 11%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span style="width: 16%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <bdi dir="auto"><?= (float)($it['packing_qty'] ?? 0) > 0 ? ((float)$it['packing_qty'] + 0) . ' ' : '' ?><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'بنڈل' : 'نگ' ?></bdi>
           </span>
-          <span style="width: 27%; text-align: left; padding-right: 3px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span style="width: 26%; text-align: left; padding-right: 2px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <bdi dir="auto"><strong><?= htmlspecialchars($it['item_name']) ?></strong></bdi>
           </span>
-          <span style="width: 16%; text-align: right; padding-right: 4px;" class="font-num"><bdi dir="ltr"><?= formatQty($it['qty'], $it['unit']) ?></bdi></span>
-          <span style="width: 18%; text-align: right; padding-right: 4px;" class="font-num"><?= number_format((float)$it['landed_unit_rate'], 2) ?></span>
-          <span style="width: 28%; text-align: right;" class="font-num"><?= number_format((float)$it['landed_cost'], 2) ?></span>
+          <span style="width: 15%; text-align: right; padding-right: 3px;" class="font-num"><bdi dir="ltr"><?= formatQty($it['qty'], $it['unit']) ?></bdi></span>
+          <span style="width: 17%; text-align: right; padding-right: 3px;" class="font-num"><?= number_format((float)$it['landed_unit_rate'], 2) ?></span>
+          <span style="width: 26%; text-align: right;" class="font-num"><?= number_format((float)$it['landed_cost'], 2) ?></span>
         </div>
       <?php endforeach; ?>
 
