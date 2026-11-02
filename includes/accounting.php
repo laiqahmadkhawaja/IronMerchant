@@ -23,6 +23,7 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
                 $sql = file_get_contents($seedFile);
                 $db->exec($sql);
             }
+        }
 
         // Auto-heal journal_entries source_type to avoid ENUM truncation error 1265
         $col = $db->query("SHOW COLUMNS FROM `journal_entries` LIKE 'source_type'")->fetch();
@@ -40,7 +41,6 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
         $cCol = $db->query("SHOW COLUMNS FROM `sales` LIKE 'cutting_charge'")->fetch();
         if (!$cCol) {
             $db->exec("ALTER TABLE `sales` ADD COLUMN `cutting_charge` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `delivery_charge`");
-        }
         }
 
         // Auto-heal returns deduction columns if missing

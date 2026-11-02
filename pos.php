@@ -5,8 +5,10 @@ declare(strict_types=1);
 $pageTitle = 'New Sale Bill (نیا بل بنائیں)';
 require_once __DIR__ . '/includes/header.php';
 requirePerm('pos');
+require_once __DIR__ . '/includes/accounting.php';
 
 $db = getDB();
+ensureChartOfAccountsIntegrity($db);
 $editSaleId = (int)($_GET['edit'] ?? 0);
 $editSale = null;
 $editItems = [];

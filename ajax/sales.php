@@ -18,6 +18,9 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $db = getDB();
 $user = getCurrentUser();
 
+// Ensure schema migrations (e.g. cutting_charge, is_walkin) are applied before executing queries
+ensureChartOfAccountsIntegrity($db);
+
 if ($action === 'list') {
     if (!hasPermission('bills') && !hasPermission('pos')) {
         requirePermission('bills');
