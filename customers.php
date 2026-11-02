@@ -400,7 +400,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php if (!$editCust): ?>
               <div class="col-12 col-md-3">
                 <label class="form-label">Opening Balance (ابتدائی بقایا رقم)</label>
-                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00 (Positive for Receivable)" value="0">
+                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00 (Positive for Receivable)" onfocus="this.select()">
               </div>
             <?php endif; ?>
 

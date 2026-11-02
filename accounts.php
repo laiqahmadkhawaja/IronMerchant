@@ -412,7 +412,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php if (!$editAcc): ?>
               <div class="col-12 col-md-4">
                 <label class="form-label">Initial Opening Balance (روپے)</label>
-                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00" value="0">
+                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00" onfocus="this.select()">
               </div>
             <?php endif; ?>
 

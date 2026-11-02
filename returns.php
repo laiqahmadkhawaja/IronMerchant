@@ -707,7 +707,7 @@ $activeShift = getActiveShift($pdo);
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="labour_deduction" id="retLabour" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="0.01" min="0.00" name="labour_deduction" id="retLabour" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
 
@@ -718,7 +718,7 @@ $activeShift = getActiveShift($pdo);
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="freight_deduction" id="retFreight" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="0.01" min="0.00" name="freight_deduction" id="retFreight" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
 
@@ -729,7 +729,7 @@ $activeShift = getActiveShift($pdo);
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="cutting_deduction" id="retCutting" value="0.00" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="0.01" min="0.00" name="cutting_deduction" id="retCutting" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
                 </div>

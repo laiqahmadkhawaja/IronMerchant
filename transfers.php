@@ -232,7 +232,7 @@ require_once __DIR__ . '/includes/header.php';
               <label class="form-label">Transfer Fee / IBFT Charges (اگر لاگو ہوں)</label>
               <div class="input-group">
                 <span class="input-group-text">Rs</span>
-                <input type="number" step="0.01" name="fee_amount" class="form-control" placeholder="0.00" value="0.00">
+                <input type="number" step="0.01" name="fee_amount" class="form-control" placeholder="0.00" onfocus="this.select()">
               </div>
             </div>
 

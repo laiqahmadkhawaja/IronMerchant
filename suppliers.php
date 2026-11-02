@@ -332,7 +332,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php if (!$editSupp): ?>
               <div class="col-12 col-md-4">
                 <label class="form-label">Opening Balance (ابتدائی واجب الادا رقم)</label>
-                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00 (Positive for Payable)" value="0">
+                <input type="number" step="0.01" name="opening_balance" class="form-control" placeholder="0.00 (Positive for Payable)" onfocus="this.select()">
               </div>
             <?php endif; ?>
 

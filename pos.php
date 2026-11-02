@@ -229,7 +229,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="labourCharge" class="form-control" value="<?= (float)($editSale['labour_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="labourCharge" class="form-control" value="<?= (!empty($editSale['labour_charge']) && (float)$editSale['labour_charge'] > 0) ? (float)$editSale['labour_charge'] : '' ?>" placeholder="0" step="any" oninput="calculateBillTotals()" onfocus="this.select()">
             </div>
           </div>
           <!-- 2. کٹنگ (Cutting) [F6] -->
@@ -240,7 +240,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="cuttingCharge" class="form-control" value="<?= (float)($editSale['cutting_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="cuttingCharge" class="form-control" value="<?= (!empty($editSale['cutting_charge']) && (float)$editSale['cutting_charge'] > 0) ? (float)$editSale['cutting_charge'] : '' ?>" placeholder="0" step="any" oninput="calculateBillTotals()" onfocus="this.select()">
             </div>
           </div>
           <!-- 3. کرایہ (Delivery) [F4] -->
@@ -251,7 +251,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="deliveryCharge" class="form-control" value="<?= (float)($editSale['delivery_charge'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="deliveryCharge" class="form-control" value="<?= (!empty($editSale['delivery_charge']) && (float)$editSale['delivery_charge'] > 0) ? (float)$editSale['delivery_charge'] : '' ?>" placeholder="0" step="any" oninput="calculateBillTotals()" onfocus="this.select()">
             </div>
           </div>
         </div>
@@ -261,7 +261,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <label class="form-label">Special Discount (رعایت)</label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
-              <input type="number" id="discountAmount" class="form-control" value="<?= (float)($editSale['discount'] ?? 0) ?>" step="any" oninput="calculateBillTotals()">
+              <input type="number" id="discountAmount" class="form-control" value="<?= (!empty($editSale['discount']) && (float)$editSale['discount'] > 0) ? (float)$editSale['discount'] : '' ?>" placeholder="0" step="any" oninput="calculateBillTotals()" onfocus="this.select()">
             </div>
           </div>
           <div class="col-6">
@@ -658,10 +658,10 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
   function resetPosForm() {
     cart = [];
     renderCart();
-    document.getElementById('discountAmount').value = '0';
-    document.getElementById('labourCharge').value = '0';
-    document.getElementById('deliveryCharge').value = '0';
-    document.getElementById('cuttingCharge').value = '0';
+    document.getElementById('discountAmount').value = '';
+    document.getElementById('labourCharge').value = '';
+    document.getElementById('deliveryCharge').value = '';
+    document.getElementById('cuttingCharge').value = '';
     document.getElementById('paidAmount').value = '';
     document.getElementById('paymentMethod').value = 'Cash';
 

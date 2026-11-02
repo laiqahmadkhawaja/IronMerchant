@@ -225,7 +225,7 @@ $activeShift = getActiveShift($db);
         <label class="form-label">Purchase Discount (Rs)</label>
         <div class="input-group">
           <span class="input-group-text">Rs</span>
-          <input type="number" id="purDiscount" class="form-control" value="<?= isset($editPur) ? (float)$editPur['discount'] : 0 ?>" step="any" oninput="calculatePurchaseTotals()">
+          <input type="number" id="purDiscount" class="form-control" value="<?= (isset($editPur) && (float)$editPur['discount'] > 0) ? (float)$editPur['discount'] : '' ?>" placeholder="0" onfocus="this.select()" step="any" oninput="calculatePurchaseTotals()">
         </div>
       </div>
     </div>
