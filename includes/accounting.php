@@ -36,6 +36,7 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
         if (!$pCol) {
             $db->exec("ALTER TABLE `parties` ADD COLUMN `is_walkin` TINYINT(1) NOT NULL DEFAULT 0 AFTER `type`");
         }
+        $db->exec("UPDATE `parties` SET `phone` = '' WHERE (`id` = 1 OR `is_walkin` = 1) AND `phone` = '0300123456'");
 
         // Auto-heal sales cutting_charge column if missing
         $cCol = $db->query("SHOW COLUMNS FROM `sales` LIKE 'cutting_charge'")->fetch();

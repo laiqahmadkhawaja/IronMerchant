@@ -62,8 +62,24 @@ if (!empty($charges)) {
     }
 }
 
+// Balance computations & Walk-in detection
+$isWalkIn = (!empty($sale['is_walkin'])) 
+    || ((int)$sale['customer_id'] === 1) 
+    || (isset($sale['customer_code']) && strtoupper((string)$sale['customer_code']) === 'CUST-001')
+    || (stripos((string)$sale['customer_name'], 'walk-in') !== false) 
+    || (stripos((string)$sale['customer_name'], 'walk in') !== false) 
+    || (stripos((string)$sale['customer_name'], 'cash customer') !== false);
+
 $displayCustomerName = !empty($sale['customer_name_custom']) ? $sale['customer_name_custom'] : $sale['customer_name'];
-$displayCustomerPhone = !empty($sale['customer_phone_custom']) ? $sale['customer_phone_custom'] : ($sale['customer_phone'] ?? '');
+if ($isWalkIn) {
+    // For walk-in customer: hide phone unless custom phone was explicitly written
+    $customPhone = trim((string)($sale['customer_phone_custom'] ?? ''));
+    $displayCustomerPhone = ($customPhone !== '' && $customPhone !== '0300123456') ? $customPhone : '';
+} else {
+    $customPhone = trim((string)($sale['customer_phone_custom'] ?? ''));
+    $partyPhone = trim((string)($sale['customer_phone'] ?? ''));
+    $displayCustomerPhone = ($customPhone !== '') ? $customPhone : (($partyPhone !== '0300123456') ? $partyPhone : '');
+}
 
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
@@ -92,14 +108,7 @@ if ($size === '') {
 }
 $isThermal = ($size === '80' || $size === '58');
 
-// Balance computations & Walk-in detection
-$isWalkIn = (!empty($sale['is_walkin'])) 
-    || ((int)$sale['customer_id'] === 1) 
-    || (isset($sale['customer_code']) && strtoupper((string)$sale['customer_code']) === 'CUST-001')
-    || (stripos((string)$sale['customer_name'], 'walk-in') !== false) 
-    || (stripos((string)$sale['customer_name'], 'walk in') !== false) 
-    || (stripos((string)$sale['customer_name'], 'cash customer') !== false);
-
+// Balance computations
 $billDue = (float)$sale['due_amount'];
 $currBalance = (float)$sale['customer_current_balance'];
 $prevBalance = $currBalance - $billDue;
@@ -387,8 +396,8 @@ foreach ($items as $it) {
       <button onclick="window.print()" class="btn btn-sm btn-primary px-3">
         <i class="fa-solid fa-print me-1"></i> Print (پرنٹ)
       </button>
-      <?php if (!empty($sale['customer_phone'])): ?>
-        <a href="https://wa.me/<?= formatWaPhone($sale['customer_phone']) ?>?text=<?= urlencode((function() use ($sale, $currBalance, $isWalkIn) {
+      <?php if (!empty($displayCustomerPhone)): ?>
+        <a href="https://wa.me/<?= formatWaPhone($displayCustomerPhone) ?>?text=<?= urlencode((function() use ($sale, $currBalance, $isWalkIn) {
             $msg = "السلام علیکم {$sale['customer_name']} صاحب!\nظفر برادرز آئرن مرچنٹس گوجرانوالہ کی طرف سے آپ کا بل #{$sale['invoice_no']} تیار ہے۔\nکل رقم: " . formatMoney($sale['grand_total']) . "\nوصول شدہ: " . formatMoney($sale['paid_amount']);
             if (!$isWalkIn) {
                 $msg .= "\nبقایا بل: " . formatMoney($sale['due_amount']) . "\nکل کھاتہ بقایا: " . formatMoney($currBalance);
