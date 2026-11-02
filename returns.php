@@ -391,7 +391,7 @@ foreach ($returnsList as $r) {
 $customers = $pdo->query("SELECT id, name, phone, current_balance FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY name")->fetchAll();
 $suppliers = $pdo->query("SELECT id, name, phone, current_balance FROM parties WHERE type = 'supplier' AND is_active = 1 ORDER BY name")->fetchAll();
 $itemsList = $pdo->query("SELECT id, name, item_code, unit, stock_qty, cost_price, sale_price FROM items WHERE is_active = 1 ORDER BY name")->fetchAll();
-$finAccounts = $pdo->query("SELECT id, account_name, account_type, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
+$finAccounts = $pdo->query("SELECT id, account_name, account_type, bank_name, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -782,16 +782,20 @@ $activeShift = getActiveShift($pdo);
                 <option value="credit_to_khata">Credit to Party Ledger Khata (کھاتے میں ایڈجسٹمنٹ)</option>
                 <option value="cash_refund">Cash Refund (کیش رجسٹر سے نقد واپسی)</option>
                 <option value="bank_refund">Bank Transfer Refund (بینک سے واپسی)</option>
+                <option value="easypaisa_refund">EasyPaisa Refund</option>
+                <option value="jazzcash_refund">JazzCash Refund</option>
               </select>
             </div>
 
             <!-- Paying Financial Account (Shown if Cash/Bank refund) -->
             <div class="col-12 col-md-6 d-none" id="financialAccountBox">
               <label class="form-label fw-bold">Paying / Receiving Account <span class="text-danger">*</span></label>
-              <select name="financial_account_id" class="form-select">
+              <select name="financial_account_id" id="retFinAccount" class="form-select">
                 <option value="">-- Select Cash/Bank Account --</option>
                 <?php foreach ($finAccounts as $fa): ?>
-                  <option value="<?= $fa['id'] ?>">
+                  <option value="<?= $fa['id'] ?>"
+                          data-type="<?= htmlspecialchars($fa['account_type']) ?>"
+                          data-name="<?= htmlspecialchars(strtolower($fa['account_name'] . ' ' . ($fa['bank_name'] ?? ''))) ?>">
                     <?= htmlspecialchars($fa['account_name']) ?> (<?= htmlspecialchars($fa['account_type']) ?> - Bal: <?= formatMoney($fa['current_balance']) ?>)
                   </option>
                 <?php endforeach; ?>
@@ -883,10 +887,17 @@ function calculateReturnTotal() {
 
 function toggleRefundAccount(method) {
   const box = document.getElementById('financialAccountBox');
+  const accEl = document.getElementById('retFinAccount');
   if (method === 'credit_to_khata') {
     box.classList.add('d-none');
   } else {
     box.classList.remove('d-none');
+    let filterType = 'bank';
+    if (method === 'cash_refund') filterType = 'cash';
+    else if (method === 'easypaisa_refund') filterType = 'easypaisa';
+    else if (method === 'jazzcash_refund') filterType = 'jazzcash';
+    else if (method === 'bank_refund') filterType = 'bank';
+    filterAccountsByPaymentMethod(filterType, accEl);
   }
 }
 </script>

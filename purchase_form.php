@@ -44,7 +44,7 @@ require_once __DIR__ . '/includes/header.php';
 $db = getDB();
 $suppliers = $db->query("SELECT id, name, current_balance FROM parties WHERE type = 'supplier' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $items = $db->query("SELECT id, name, unit, cost_price FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
-$accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
+$accounts = $db->query("SELECT id, account_name, account_type, bank_name, account_number FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 $activeShift = getActiveShift($db);
 ?>
 
@@ -206,22 +206,37 @@ $activeShift = getActiveShift($db);
     <h5 class="fw-bold mb-3" style="color:var(--nv);"><i class="fa-solid fa-money-check-dollar me-1"></i> 3. Payment Details &amp; Confirmation</h5>
 
     <div class="row g-3">
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-3">
+        <label class="form-label">Payment Method (طریقہ ادائیگی)</label>
+        <select id="purPayMethod" class="form-select" data-filter-accounts-for="#purAccount" onchange="filterAccountsByPaymentMethod(this, document.getElementById('purAccount'))">
+          <option value="Cash">Cash (نقد)</option>
+          <option value="Bank">Bank Deposit / Transfer</option>
+          <option value="EasyPaisa">EasyPaisa</option>
+          <option value="JazzCash">JazzCash</option>
+          <option value="Credit">Credit / Payable (ادھار)</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
         <label class="form-label">Amount Paid to Supplier Now (Rs)</label>
         <div class="input-group">
           <span class="input-group-text">Rs</span>
           <input type="number" id="purPaid" class="form-control fw-bold" value="<?= isset($editPur) ? (float)$editPur['paid_amount'] : '' ?>" placeholder="0 if full credit purchase" step="any" oninput="calculatePurchaseTotals()">
         </div>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-3">
         <label class="form-label">Payment Source Account</label>
         <select id="purAccount" class="form-select">
           <?php foreach ($accounts as $a): ?>
-            <option value="<?= $a['id'] ?>" <?= ($editPur && (int)$a['id'] === (int)$editPur['payment_account_id']) ? 'selected' : '' ?>><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
+            <option value="<?= $a['id'] ?>" 
+                    data-type="<?= htmlspecialchars($a['account_type']) ?>" 
+                    data-name="<?= htmlspecialchars(strtolower($a['account_name'] . ' ' . ($a['bank_name'] ?? ''))) ?>"
+                    <?= ($editPur && (int)$a['id'] === (int)$editPur['payment_account_id']) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)
+            </option>
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-3">
         <label class="form-label">Purchase Discount (Rs)</label>
         <div class="input-group">
           <span class="input-group-text">Rs</span>
@@ -310,12 +325,22 @@ $activeShift = getActiveShift($db);
 
     qtyInput.value = '';
     rateInput.value = '';
-    recalculateLandedDistribution();
+    const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
+  recalculateLandedDistribution();
   }
 
   function removePurchaseLine(idx) {
     purchaseItems.splice(idx, 1);
-    recalculateLandedDistribution();
+    const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
+  recalculateLandedDistribution();
   }
 
   function addPurchaseCharge() {
@@ -341,12 +366,22 @@ $activeShift = getActiveShift($db);
 
     nameInput.value = '';
     amtInput.value = '';
-    recalculateLandedDistribution();
+    const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
+  recalculateLandedDistribution();
   }
 
   function removePurchaseCharge(idx) {
     purchaseCharges.splice(idx, 1);
-    recalculateLandedDistribution();
+    const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
+  recalculateLandedDistribution();
   }
 
   function recalculateLandedDistribution() {
@@ -458,7 +493,12 @@ $activeShift = getActiveShift($db);
   function updatePurchaseChargeMethod(idx, newMethod) {
     if (purchaseCharges[idx]) {
       purchaseCharges[idx].allocation_method = newMethod;
-      recalculateLandedDistribution();
+      const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
+  recalculateLandedDistribution();
     }
   }
 
@@ -490,6 +530,7 @@ $activeShift = getActiveShift($db);
     formData.append('items', JSON.stringify(purchaseItems));
     formData.append('charges', JSON.stringify(purchaseCharges));
     formData.append('paid_amount', document.getElementById('purPaid').value);
+    formData.append('payment_method', document.getElementById('purPayMethod') ? document.getElementById('purPayMethod').value : 'Cash');
     formData.append('payment_account_id', document.getElementById('purAccount').value);
     formData.append('discount', document.getElementById('purDiscount').value);
 
@@ -527,6 +568,11 @@ $activeShift = getActiveShift($db);
       purAccEl.value = "<?= (int)$editPur['payment_account_id'] ?>";
     }
   <?php endif; ?>
+  const purPayInitEl = document.getElementById('purPayMethod');
+  const purAccInitEl = document.getElementById('purAccount');
+  if (purPayInitEl && purAccInitEl) {
+    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
+  }
   recalculateLandedDistribution();
 </script>
 

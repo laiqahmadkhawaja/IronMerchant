@@ -264,7 +264,9 @@ $finAccounts = $db->query("
               <label class="form-label small fw-bold">Receiving Account (کھاتہ) <span class="text-danger">*</span></label>
               <select name="account_id" id="pay_account_id" class="form-select" required onchange="onAccountChange(this)">
                 <?php foreach ($finAccounts as $fa): ?>
-                  <option value="<?= $fa['id'] ?>" data-type="<?= htmlspecialchars($fa['account_type']) ?>">
+                  <option value="<?= $fa['id'] ?>" 
+                          data-type="<?= htmlspecialchars($fa['account_type']) ?>"
+                          data-name="<?= htmlspecialchars(strtolower($fa['account_name'] . ' ' . ($fa['bank_name'] ?? ''))) ?>">
                     <?= htmlspecialchars($fa['account_name']) ?> (<?= $fa['account_type'] ?>) - Rs <?= number_format((float)$fa['current_balance'], 2) ?>
                   </option>
                 <?php endforeach; ?>
@@ -274,11 +276,12 @@ $finAccounts = $db->query("
             <!-- Payment Mode -->
             <div class="col-12 col-md-6">
               <label class="form-label small fw-bold">Payment Mode (طریقہ)</label>
-              <select name="payment_mode" id="pay_mode" class="form-select">
+              <select name="payment_mode" id="pay_mode" class="form-select" data-filter-accounts-for="#pay_account_id" onchange="filterAccountsByPaymentMethod(this, document.getElementById('pay_account_id'))">
                 <option value="Cash">Cash (نقد)</option>
                 <option value="Bank Transfer">Bank Transfer (آن لائن ٹرانسفر)</option>
                 <option value="Cheque">Bank Cheque (بینک چیک)</option>
-                <option value="EasyPaisa/JazzCash">EasyPaisa / JazzCash</option>
+                <option value="EasyPaisa">EasyPaisa</option>
+                <option value="JazzCash">JazzCash</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -349,6 +352,7 @@ $finAccounts = $db->query("
     
     setVal('pay_cheque_no', '');
     setVal('pay_narration', `Delivery / bill payment for ${sale.invoice_no}`);
+    filterAccountsByPaymentMethod(document.getElementById('pay_mode'), document.getElementById('pay_account_id'));
     
     const errorAlert = document.getElementById('pay_error_alert');
     if (errorAlert) {

@@ -37,7 +37,7 @@ if ($editSaleId > 0) {
 }
 $items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 $customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
-$accounts = $db->query("SELECT id, account_name, account_type FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
+$accounts = $db->query("SELECT id, account_name, account_type, bank_name, account_number FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 $companySettings = getCompanySettings();
 $activeShift = getActiveShift($db);
 $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
@@ -112,8 +112,8 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         <div class="col-6 col-sm-6 col-md-2">
           <label class="form-label">Type (نوعیت)</label>
           <select id="itemPacking" class="form-select">
-            <option value="Bundle">Bundle (بنڈل)</option>
-            <option value="Piece" selected>Piece / Pc (نگ)</option>
+            <option value="Bundle" selected>Bundle (بنڈل)</option>
+            <option value="Piece">Pc (نگ)</option>
           </select>
         </div>
 
@@ -225,13 +225,13 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <!-- Walk-in Customer Credit Warning Banner -->
-      <div id="walkInNotice" class="alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12.5px; border-radius: 8px;">
+      <!-- <div id="walkInNotice" class="alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12.5px; border-radius: 8px;">
         <i class="fa-solid fa-ban text-danger fs-5"></i>
         <div>
           <strong>Walk-in Policy (واک ان گاہک):</strong>
           <span>واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل ادائیگی لازمی ہے۔ (No credit sales allowed for walk-in customers. 100% full payment required.)</span>
         </div>
-      </div>
+      </div> -->
 
       <!-- Charges & Discounts -->
       <div class="p-3 bg-light rounded-3 border mb-3">
@@ -281,7 +281,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           </div>
           <div class="col-12 col-sm-6">
             <label class="form-label">Payment Method</label>
-            <select id="paymentMethod" class="form-select">
+            <select id="paymentMethod" class="form-select" data-filter-accounts-for="#depositAccount" onchange="filterAccountsByPaymentMethod(this, document.getElementById('depositAccount'))">
               <option value="Cash" <?= ($editSale && $editSale['payment_method'] === 'Cash') ? 'selected' : '' ?>>Cash (نقد)</option>
               <option value="Bank" <?= ($editSale && $editSale['payment_method'] === 'Bank') ? 'selected' : '' ?>>Bank Deposit</option>
               <option value="EasyPaisa" <?= ($editSale && $editSale['payment_method'] === 'EasyPaisa') ? 'selected' : '' ?>>EasyPaisa</option>
@@ -296,10 +296,15 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <label class="form-label">Deposit In Account</label>
             <select id="depositAccount" class="form-select">
               <?php if (empty($accounts)): ?>
-                <option value="1">Main Cash Register (Cash)</option>
+                <option value="1" data-type="Cash" data-name="Main Cash Register">Main Cash Register (Cash)</option>
               <?php else: ?>
                 <?php foreach ($accounts as $a): ?>
-                  <option value="<?= $a['id'] ?>" <?= ($editSale && (int)$a['id'] === (int)($editSale['payment_account_id'] ?? 0)) ? 'selected' : '' ?>><?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)</option>
+                  <option value="<?= $a['id'] ?>" 
+                          data-type="<?= htmlspecialchars($a['account_type']) ?>" 
+                          data-name="<?= htmlspecialchars(strtolower($a['account_name'] . ' ' . ($a['bank_name'] ?? ''))) ?>"
+                          <?= ($editSale && (int)$a['id'] === (int)($editSale['payment_account_id'] ?? 0)) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($a['account_name']) ?> (<?= $a['account_type'] ?>)
+                  </option>
                 <?php endforeach; ?>
               <?php endif; ?>
             </select>
@@ -858,8 +863,17 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       payMethodSelEl.value = "<?= htmlspecialchars($editSale['payment_method']) ?>";
     }
     const depAccEl = document.getElementById('depositAccount');
+    if (payMethodSelEl && depAccEl) {
+      filterAccountsByPaymentMethod(payMethodSelEl, depAccEl);
+    }
     if (depAccEl && "<?= (int)($editSale['payment_account_id'] ?? 0) ?>" > 0) {
       depAccEl.value = "<?= (int)$editSale['payment_account_id'] ?>";
+    }
+  <?php else: ?>
+    const initPayMethodEl = document.getElementById('paymentMethod');
+    const initDepAccEl = document.getElementById('depositAccount');
+    if (initPayMethodEl && initDepAccEl) {
+      filterAccountsByPaymentMethod(initPayMethodEl, initDepAccEl);
     }
   <?php endif; ?>
   renderCart();

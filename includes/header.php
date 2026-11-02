@@ -45,6 +45,116 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
       localStorage.setItem('sidebar_collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
     }
   }
+
+  /**
+   * Universally filters a financial account <select> based on a payment method <select> or string value.
+   * Dynamically re-populates options in real-time so incompatible accounts are excluded from the dropdown.
+   */
+  function filterAccountsByPaymentMethod(methodEl, accountEl) {
+    if (!accountEl) return;
+    const methodVal = (typeof methodEl === 'string' ? methodEl : (methodEl ? methodEl.value : '')).trim().toLowerCase();
+
+    // Cache master list of options once on accountEl
+    if (!accountEl._masterAccountOptions) {
+      accountEl._masterAccountOptions = Array.from(accountEl.querySelectorAll('option')).map(opt => ({
+        value: opt.value,
+        text: opt.text,
+        type: (opt.dataset.type || opt.getAttribute('data-type') || '').toLowerCase(),
+        name: (opt.dataset.name || opt.getAttribute('data-name') || opt.text || '').toLowerCase(),
+        isPlaceholder: !opt.value || opt.value === '0' || opt.value === '',
+        dataset: { ...opt.dataset }
+      }));
+    }
+
+    const currentVal = String(accountEl.value || '');
+    const filtered = [];
+    let firstMatch = null;
+    let currentMatched = false;
+
+    accountEl._masterAccountOptions.forEach(item => {
+      if (item.isPlaceholder) {
+        filtered.push(item);
+        return;
+      }
+
+      let matches = false;
+      const name = item.name;
+      const type = item.type;
+
+      if (methodVal.includes('cash') && !methodVal.includes('jazz')) {
+        // Cash: only Cash accounts or name containing cash/safe/drawer/counter/register
+        matches = (type === 'cash') || name.includes('cash') || name.includes('safe') || name.includes('drawer') || name.includes('register');
+      } else if (methodVal.includes('easypaisa') || methodVal.includes('easy paisa') || methodVal.includes('easy')) {
+        // EasyPaisa: only EasyPaisa accounts or mobile wallet not containing jazz
+        matches = name.includes('easypaisa') || name.includes('easy paisa') || name.includes('ep') || (type === 'mobile wallet' && !name.includes('jazz'));
+      } else if (methodVal.includes('jazzcash') || methodVal.includes('jazz cash') || methodVal.includes('jazz')) {
+        // JazzCash: only JazzCash accounts or mobile wallet not containing easy
+        matches = name.includes('jazzcash') || name.includes('jazz cash') || name.includes('jazz') || (type === 'mobile wallet' && !name.includes('easy'));
+      } else if (methodVal.includes('bank') || methodVal.includes('online') || methodVal.includes('cheque') || methodVal.includes('payorder')) {
+        // Bank / Cheque / Online: only Bank accounts (excluding jazzcash/easypaisa)
+        matches = (type === 'bank') && !name.includes('jazz') && !name.includes('easy');
+      } else if (methodVal.includes('credit')) {
+        // Credit: keep all
+        matches = true;
+      } else {
+        matches = true;
+      }
+
+      if (matches) {
+        filtered.push(item);
+        if (!firstMatch) firstMatch = item.value;
+        if (String(item.value) === currentVal) currentMatched = true;
+      }
+    });
+
+    const nonPlaceholders = filtered.filter(x => !x.isPlaceholder);
+    accountEl.innerHTML = '';
+
+    if (nonPlaceholders.length === 0) {
+      let label = 'Account';
+      if (methodVal.includes('jazz')) label = 'JazzCash';
+      else if (methodVal.includes('easy')) label = 'EasyPaisa';
+      else if (methodVal.includes('cash')) label = 'Cash';
+      else if (methodVal.includes('bank')) label = 'Bank';
+
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.text = `⚠️ No active ${label} account found (add in Accounts)`;
+      opt.disabled = true;
+      opt.selected = true;
+      accountEl.appendChild(opt);
+      accountEl.value = '';
+    } else {
+      filtered.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.value;
+        opt.text = item.text;
+        for (const [k, v] of Object.entries(item.dataset)) {
+          opt.dataset[k] = v;
+        }
+        accountEl.appendChild(opt);
+      });
+
+      if (currentMatched) {
+        accountEl.value = currentVal;
+      } else if (firstMatch) {
+        accountEl.value = firstMatch;
+      }
+    }
+  }
+
+  // Auto-bind any data-filter-accounts-for elements on DOM ready
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-filter-accounts-for]').forEach(methodEl => {
+      const selector = methodEl.getAttribute('data-filter-accounts-for');
+      const accountEl = document.querySelector(selector);
+      if (accountEl) {
+        const applyFilter = () => filterAccountsByPaymentMethod(methodEl, accountEl);
+        methodEl.addEventListener('change', applyFilter);
+        applyFilter();
+      }
+    });
+  });
 </script>
 
 <div class="app-wrapper">

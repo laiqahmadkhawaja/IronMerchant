@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 // Fetch categories & financial accounts
 $categories = $pdo->query("SELECT * FROM expense_categories WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
-$finAccounts = $pdo->query("SELECT id, account_name, account_type, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
+$finAccounts = $pdo->query("SELECT id, account_name, account_type, bank_name, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
 $expenseCoaAccounts = $pdo->query("SELECT id, code, name FROM chart_of_accounts WHERE type = 'Expense' AND is_active = 1 ORDER BY code ASC")->fetchAll();
 
 // Filters
@@ -465,10 +465,12 @@ $activeShift = getActiveShift($pdo);
 
             <div class="col-12 col-md-4">
               <label class="form-label">Paid From Account (کس کھاتے سے ادائیگی کی؟) <span class="text-danger">*</span></label>
-              <select name="payment_account_id" class="form-select" required>
+              <select name="payment_account_id" id="expPaymentAccount" class="form-select" required>
                 <option value="">-- Select Cash/Bank Account --</option>
                 <?php foreach ($finAccounts as $fa): ?>
-                  <option value="<?= $fa['id'] ?>">
+                  <option value="<?= $fa['id'] ?>" 
+                          data-type="<?= htmlspecialchars($fa['account_type']) ?>"
+                          data-name="<?= htmlspecialchars(strtolower($fa['account_name'] . ' ' . ($fa['bank_name'] ?? ''))) ?>">
                     <?= htmlspecialchars($fa['account_name']) ?> (<?= htmlspecialchars($fa['account_type']) ?>) - Balance: <?= formatCurrency((float)$fa['current_balance']) ?>
                   </option>
                 <?php endforeach; ?>
@@ -477,10 +479,12 @@ $activeShift = getActiveShift($pdo);
 
             <div class="col-12 col-md-2">
               <label class="form-label">Payment Mode</label>
-              <select name="payment_method" class="form-select">
+              <select name="payment_method" id="expPayMethod" class="form-select" data-filter-accounts-for="#expPaymentAccount" onchange="filterAccountsByPaymentMethod(this, document.getElementById('expPaymentAccount'))">
                 <option value="Cash">Cash (نقد)</option>
                 <option value="Online">Online Bank Transfer</option>
                 <option value="Cheque">Bank Cheque</option>
+                <option value="EasyPaisa">EasyPaisa</option>
+                <option value="JazzCash">JazzCash</option>
               </select>
             </div>
 

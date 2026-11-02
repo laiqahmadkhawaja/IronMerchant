@@ -262,7 +262,7 @@ foreach ($ledgerEntries as &$entry) {
 unset($entry);
 
 // Fetch cash/bank accounts for the payment form
-$finAccounts = $pdo->query("SELECT id, account_name, account_type, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
+$finAccounts = $pdo->query("SELECT id, account_name, account_type, bank_name, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -446,10 +446,12 @@ require_once __DIR__ . '/includes/header.php';
 
             <div class="col-12 col-md-4">
               <label class="form-label">Deposit To Account (کیش یا بینک کھاتہ) <span class="text-danger">*</span></label>
-              <select name="financial_account_id" class="form-select" required>
+              <select name="financial_account_id" id="custFinAccount" class="form-select" required>
                 <option value="">-- Select Receiving Account --</option>
                 <?php foreach ($finAccounts as $fa): ?>
-                  <option value="<?= $fa['id'] ?>">
+                  <option value="<?= $fa['id'] ?>" 
+                          data-type="<?= htmlspecialchars($fa['account_type']) ?>"
+                          data-name="<?= htmlspecialchars(strtolower($fa['account_name'] . ' ' . ($fa['bank_name'] ?? ''))) ?>">
                     <?= htmlspecialchars($fa['account_name']) ?> (<?= htmlspecialchars($fa['account_type']) ?>) - Balance: <?= formatCurrency((float)$fa['current_balance']) ?>
                   </option>
                 <?php endforeach; ?>
@@ -466,10 +468,12 @@ require_once __DIR__ . '/includes/header.php';
 
             <div class="col-12 col-md-2">
               <label class="form-label">Payment Mode</label>
-              <select name="payment_mode" class="form-select">
+              <select name="payment_mode" id="custPayMode" class="form-select" data-filter-accounts-for="#custFinAccount" onchange="filterAccountsByPaymentMethod(this, document.getElementById('custFinAccount'))">
                 <option value="Cash">Cash (نقد)</option>
-                <option value="Cheque">Bank Cheque (چیک)</option>
                 <option value="Online">Online Bank Transfer</option>
+                <option value="Cheque">Bank Cheque (چیک)</option>
+                <option value="EasyPaisa">EasyPaisa</option>
+                <option value="JazzCash">JazzCash</option>
                 <option value="PayOrder">Pay Order / DD</option>
               </select>
             </div>
