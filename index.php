@@ -84,9 +84,10 @@ $totalPay = (float)$db->query("SELECT COALESCE(SUM(current_balance), 0) FROM `pa
 $cashFunds = (float)$db->query("SELECT COALESCE(SUM(current_balance), 0) FROM `financial_accounts` WHERE `account_type` = 'Cash' AND `is_active` = 1")->fetchColumn();
 $bankFunds = (float)$db->query("SELECT COALESCE(SUM(current_balance), 0) FROM `financial_accounts` WHERE `account_type` = 'Bank' AND `is_active` = 1")->fetchColumn();
 
-$stockRow = $db->query("SELECT COALESCE(SUM(stock_qty * cost_price), 0), COUNT(CASE WHEN stock_qty < alert_qty THEN 1 END) FROM `items` WHERE `is_active` = 1")->fetch(PDO::FETCH_NUM);
+$stockRow = $db->query("SELECT COALESCE(SUM(stock_qty * cost_price), 0), COUNT(CASE WHEN stock_qty < alert_qty THEN 1 END), COALESCE(SUM(stock_qty), 0) FROM `items` WHERE `is_active` = 1")->fetch(PDO::FETCH_NUM);
 $stockVal = (float)($stockRow[0] ?? 0);
 $lowStockCount = (int)($stockRow[1] ?? 0);
+$totalStockKg = (float)($stockRow[2] ?? 0);
 
 // Recent Bills
 $recentBills = $db->query("
@@ -232,9 +233,9 @@ $topRec = $db->query("
       <button type="button" class="btn btn-link p-0 text-muted kpi-eye-btn" onclick="toggleSingleCard(this)" title="Toggle Visibility (دیکھیں / چھپائیں)" style="position: absolute; right: 12px; top: 10px; font-size: 13px; text-decoration: none;">
         <i class="fa-regular fa-eye-slash"></i>
       </button>
-      <div class="kpi-title">Inventory Valuation (سٹاک مالیت)</div>
+      <div class="kpi-title">Current Inventory (موجودہ مال اسٹاک)</div>
       <div class="kpi-value" style="color: #f08a24;">
-        <span class="kpi-amount" data-real="<?= htmlspecialchars(formatMoney($stockVal)) ?>">Rs ••••••</span>
+        <span class="kpi-amount font-num" data-real="<?= number_format($totalStockKg, 2) ?> kg">•••••• kg</span>
       </div>
       <div class="kpi-sub <?= $lowStockCount > 0 ? 'text-danger fw-bold' : 'text-success' ?>">
         <?= $lowStockCount ?> low-stock alerts
@@ -361,7 +362,8 @@ function toggleAllKpis() {
     if (btnIcon) btnIcon.className = 'fa-regular fa-eye';
     if (btnText) btnText.innerText = 'Show Values (رقم دیکھیں)';
     amounts.forEach(el => {
-      el.innerText = 'Rs ••••••';
+      const real = el.getAttribute('data-real') || '';
+      el.innerText = real.includes('kg') ? '•••••• kg' : 'Rs ••••••';
     });
     cardEyes.forEach(i => {
       i.className = 'fa-regular fa-eye-slash';
@@ -383,7 +385,8 @@ function toggleSingleCard(btn) {
     if (icon) icon.className = 'fa-regular fa-eye';
   } else {
     cardAmounts.forEach(el => {
-      el.innerText = 'Rs ••••••';
+      const real = el.getAttribute('data-real') || '';
+      el.innerText = real.includes('kg') ? '•••••• kg' : 'Rs ••••••';
     });
     if (icon) icon.className = 'fa-regular fa-eye-slash';
   }
