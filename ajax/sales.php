@@ -181,9 +181,9 @@ if ($action === 'create') {
         || (stripos((string)$customer['name'], 'walk in') !== false)
         || (stripos((string)$customer['name'], 'cash customer') !== false);
 
-    // Rule: Walk-in customers CANNOT have credit sales or unpaid dues
-    if ($isWalkIn && strcasecmp($paymentMethod, 'Credit') === 0 && ($paidAmountInput === null || (float)$paidAmountInput <= 0)) {
-        jsonError('Pure credit sales without advance payment are prohibited for Walk-in Customers. Please record advance payment; remaining balance will be due upon site unloading. (واک ان گاہک کے لیے کم از کم پیشگی رقم وصول کریں)');
+    // Rule: Walk-in customers CANNOT have credit sales or unpaid balance
+    if ($isWalkIn && (strcasecmp($paymentMethod, 'Credit') === 0 || ($paidAmountInput !== null && $paidAmountInput !== '' && (float)$paidAmountInput <= 0))) {
+        jsonError('واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل رقم وصول کریں۔ (Credit sales are strictly prohibited for Walk-in Customers. Full payment is required.)');
     }
 
     // Start database transaction
@@ -263,9 +263,8 @@ if ($action === 'create') {
         $dueAmount = round($grandTotal - $paidAmount, 2);
         $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
 
-        if ($isWalkIn && $dueAmount > 0) {
-            $deliveryNote = "Advance Paid: Rs " . number_format($paidAmount, 2) . " | Due on Site Unloading: Rs " . number_format($dueAmount, 2) . " (مال اتروائی پر بقیہ وصولی)";
-            $notes = $notes ? ($notes . " | " . $deliveryNote) : $deliveryNote;
+        if ($isWalkIn && ($dueAmount > 0.009 || strcasecmp($paymentMethod, 'Credit') === 0)) {
+            throw new Exception('واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل رقم وصول کریں۔ (Credit sales are strictly prohibited for Walk-in Customers. Full payment is required.)');
         }
 
         // 2. Insert sales header
@@ -540,8 +539,8 @@ if ($action === 'update') {
         || (stripos((string)$customer['name'], 'walk in') !== false)
         || (stripos((string)$customer['name'], 'cash customer') !== false);
 
-    if ($isWalkIn && strcasecmp($paymentMethod, 'Credit') === 0 && ($paidAmountInput === null || (float)$paidAmountInput <= 0)) {
-        jsonError('Pure credit sales without advance payment are prohibited for Walk-in Customers.');
+    if ($isWalkIn && (strcasecmp($paymentMethod, 'Credit') === 0 || ($paidAmountInput !== null && $paidAmountInput !== '' && (float)$paidAmountInput <= 0))) {
+        jsonError('واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل رقم وصول کریں۔ (Credit sales are strictly prohibited for Walk-in Customers. Full payment is required.)');
     }
 
     $db->beginTransaction();
@@ -657,6 +656,10 @@ if ($action === 'update') {
 
         $dueAmount = round($grandTotal - $paidAmount, 2);
         $paymentStatus = ($dueAmount <= 0) ? 'Paid' : (($paidAmount == 0) ? 'Unpaid' : 'Partial');
+
+        if ($isWalkIn && ($dueAmount > 0.009 || strcasecmp($paymentMethod, 'Credit') === 0)) {
+            throw new Exception('واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل رقم وصول کریں۔ (Credit sales are strictly prohibited for Walk-in Customers. Full payment is required.)');
+        }
 
         // 6. Insert new sale items & deduct inventory
         $itemInsertStmt = $db->prepare("

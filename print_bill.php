@@ -18,8 +18,8 @@ $id = (int)($_GET['id'] ?? 0);
 $db = getDB();
 
 $stmt = $db->prepare("
-    SELECT s.*, p.name AS customer_name, p.phone AS customer_phone, p.address AS customer_address, 
-           p.current_balance AS customer_current_balance, u.name AS cashier_name
+    SELECT s.*, p.name AS customer_name, p.code AS customer_code, p.phone AS customer_phone, p.address AS customer_address, 
+           p.current_balance AS customer_current_balance, p.is_walkin, u.name AS cashier_name
     FROM sales s
     JOIN parties p ON s.customer_id = p.id
     LEFT JOIN users u ON s.created_by = u.id
@@ -92,7 +92,14 @@ if ($size === '') {
 }
 $isThermal = ($size === '80' || $size === '58');
 
-// Balance computations
+// Balance computations & Walk-in detection
+$isWalkIn = (!empty($sale['is_walkin'])) 
+    || ((int)$sale['customer_id'] === 1) 
+    || (isset($sale['customer_code']) && strtoupper((string)$sale['customer_code']) === 'CUST-001')
+    || (stripos((string)$sale['customer_name'], 'walk-in') !== false) 
+    || (stripos((string)$sale['customer_name'], 'walk in') !== false) 
+    || (stripos((string)$sale['customer_name'], 'cash customer') !== false);
+
 $billDue = (float)$sale['due_amount'];
 $currBalance = (float)$sale['customer_current_balance'];
 $prevBalance = $currBalance - $billDue;
@@ -381,7 +388,16 @@ foreach ($items as $it) {
         <i class="fa-solid fa-print me-1"></i> Print (پرنٹ)
       </button>
       <?php if (!empty($sale['customer_phone'])): ?>
-        <a href="https://wa.me/<?= formatWaPhone($sale['customer_phone']) ?>?text=<?= urlencode("السلام علیکم {$sale['customer_name']} صاحب!\nظفر برادرز آئرن مرچنٹس گوجرانوالہ کی طرف سے آپ کا بل #{$sale['invoice_no']} تیار ہے۔\nکل رقم: " . formatMoney($sale['grand_total']) . "\nوصول شدہ: " . formatMoney($sale['paid_amount']) . "\nبقایا بل: " . formatMoney($sale['due_amount']) . "\nکل کھاتہ بقایا: " . formatMoney($currBalance) . "\nشکریہ!") ?>" target="_blank" class="btn btn-sm btn-success">
+        <a href="https://wa.me/<?= formatWaPhone($sale['customer_phone']) ?>?text=<?= urlencode((function() use ($sale, $currBalance, $isWalkIn) {
+            $msg = "السلام علیکم {$sale['customer_name']} صاحب!\nظفر برادرز آئرن مرچنٹس گوجرانوالہ کی طرف سے آپ کا بل #{$sale['invoice_no']} تیار ہے۔\nکل رقم: " . formatMoney($sale['grand_total']) . "\nوصول شدہ: " . formatMoney($sale['paid_amount']);
+            if (!$isWalkIn) {
+                $msg .= "\nبقایا بل: " . formatMoney($sale['due_amount']) . "\nکل کھاتہ بقایا: " . formatMoney($currBalance);
+            } else {
+                $msg .= "\nحیثیت: مکمل ادا شدہ نقد (Paid)";
+            }
+            $msg .= "\nشکریہ!";
+            return $msg;
+        })()) ?>" target="_blank" class="btn btn-sm btn-success">
           <i class="fa-brands fa-whatsapp me-1"></i> WhatsApp
         </a>
       <?php endif; ?>
@@ -502,7 +518,8 @@ foreach ($items as $it) {
         <span class="font-num"><?= number_format((float)$sale['due_amount'], 2) ?></span>
       </div>
 
-      <!-- Khata Balance Section -->
+      <!-- Khata Balance Section (Hidden for Walk-in Customers) -->
+      <?php if (!$isWalkIn): ?>
       <div class="th-line"></div>
       <div class="th-row th-meta">
         <span>Previous Balance:</span>
@@ -512,6 +529,7 @@ foreach ($items as $it) {
         <span>TOTAL KHATA DUE:</span>
         <span class="font-num"><?= formatCurrency($currBalance) ?></span>
       </div>
+      <?php endif; ?>
 
       <div class="th-line"></div>
 
@@ -736,7 +754,8 @@ foreach ($items as $it) {
             <?php endif; ?>
           </div>
 
-          <!-- Customer Khata Ledger Impact Box (Isolated Elements) -->
+          <?php if (!$isWalkIn): ?>
+          <!-- Customer Khata Ledger Impact Box (Isolated Elements - Hidden for Walk-in Customers) -->
           <div class="mt-2 p-2 border rounded" style="background: #f8fafc; font-size: 11.5px;">
             <div class="d-flex justify-content-between align-items-center py-1">
               <div class="d-flex align-items-center gap-1">
@@ -760,6 +779,7 @@ foreach ($items as $it) {
               <span class="font-num fs-6" style="color: #b91c1c;"><?= formatCurrency($currBalance) ?></span>
             </div>
           </div>
+          <?php endif; ?>
         </div>
 
         <!-- Numerical Totals Box (Isolated Elements, Non-wrapping amounts) -->
@@ -835,6 +855,7 @@ foreach ($items as $it) {
               <span class="font-num fw-bold text-success"><?= formatMoney($sale['paid_amount']) ?></span>
             </div>
 
+            <?php if (!$isWalkIn): ?>
             <div class="d-flex justify-content-between align-items-center py-1 fw-bold <?= (float)$sale['due_amount'] > 0 ? 'text-danger' : 'text-success' ?>" <?= (float)$sale['due_amount'] > 0 ? 'style="background: #fef2f2; padding: 4px 6px; border-radius: 4px;"' : '' ?>>
               <div class="d-flex align-items-center gap-1">
                 <span><?= ((float)$sale['due_amount'] > 0) ? 'Due on Site Delivery / Unloading' : 'Balance Due' ?></span>
@@ -842,6 +863,15 @@ foreach ($items as $it) {
               </div>
               <span class="font-num fs-6"><?= formatMoney($sale['due_amount']) ?></span>
             </div>
+            <?php else: ?>
+            <div class="d-flex justify-content-between align-items-center py-1 fw-bold text-success" style="background: #f0fdf4; padding: 4px 6px; border-radius: 4px;">
+              <div class="d-flex align-items-center gap-1">
+                <span>Bill Payment Status</span>
+                <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;">ادائیگی کی حیثیت</span>
+              </div>
+              <span class="font-num fs-6 text-success">PAID (مکمل نقد وصول)</span>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>

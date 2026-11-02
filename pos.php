@@ -210,11 +210,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <!-- Walk-in Customer Credit Warning Banner -->
-      <div id="walkInNotice" class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12.5px; border-radius: 8px;">
-        <i class="fa-solid fa-truck-ramp-box text-primary fs-5"></i>
+      <div id="walkInNotice" class="alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size: 12.5px; border-radius: 8px;">
+        <i class="fa-solid fa-ban text-danger fs-5"></i>
         <div>
           <strong>Walk-in Policy (واک ان گاہک):</strong>
-          <span>Advance payment accepted; any remaining balance is payable upon site delivery/unloading (پیشگی وصولی + بقیہ رقم موقع پر مال اتروائی پر واجب الادا). Pure credit is not allowed.</span>
+          <span>واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ نقد یا بینک کے ذریعے 100% مکمل ادائیگی لازمی ہے۔ (No credit sales allowed for walk-in customers. 100% full payment required.)</span>
         </div>
       </div>
 
@@ -384,7 +384,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         if (notice) notice.style.display = 'flex';
         if (creditOption) creditOption.disabled = true;
         if (paySelect.value === 'Credit') paySelect.value = 'Cash';
-        paidInput.placeholder = 'Blank = Full Pay / Enter Advance (پیشگی)';
+        paidInput.placeholder = '100% Full Payment (مکمل نقد وصولی)';
         nameInput.value = '';
         phoneInput.value = '';
       } else {
@@ -548,8 +548,12 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     const grand = Math.max(0, (subtotal + labour + delivery + cutting) - discount);
 
     if (isWalkIn) {
-      if (payMethod === 'Credit' && (!paidVal || parseFloat(paidVal) <= 0)) {
-        alert('واک ان گاہک کے لیے 100% ادھار کی اجازت نہیں ہے۔ برائے مہربانی کم از کم پیشگی رقم درج کریں، بقیہ رقم مال اتروائی پر وصول کی جائے گی۔');
+      if (payMethod === 'Credit') {
+        alert('واک ان گاہک کے لیے ادھار بل کی اجازت نہیں ہے۔ براہِ مہربانی نقد یا بینک کے ذریعے مکمل رقم وصول کریں۔ (No credit sale allowed for walk-in customer.)');
+        return;
+      }
+      if (paidVal !== '' && parseFloat(paidVal) < (grand - 0.01)) {
+        alert('واک ان گاہک کے لیے ادھار یا نامکمل ادائیگی کی اجازت نہیں ہے۔ مکمل رقم (' + grand.toFixed(2) + ' روپے) وصول کریں۔\n\n(No credit sale allowed for walk-in customer. Full payment required.)');
         const paidInput = document.getElementById('paidAmount');
         if (paidInput) { paidInput.focus(); paidInput.select(); }
         return;
