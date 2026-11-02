@@ -282,8 +282,9 @@ foreach ($items as $it) {
     .thermal-receipt.size-80 .th-meta       { font-size: 11px; }
     .thermal-receipt.size-80 .th-item-title { font-size: 11.5px; word-break: break-word; }
     .thermal-receipt.size-80 .th-item-sub   { font-size: 10.5px; }
+    .thermal-receipt.size-80 .th-payable    { font-size: 11.5px; font-weight: 700; }
     .thermal-receipt.size-80 .th-total      { font-size: 15px; }
-    .thermal-receipt.size-80 .th-due        { font-size: 12px; }
+    .thermal-receipt.size-80 .th-due        { font-size: 11px; }
     .thermal-receipt.size-80 .th-khata      { font-size: 13px; }
     .thermal-receipt.size-80 .th-footer     { font-size: 10px; }
     .thermal-receipt.size-80 .th-credits    { font-size: 9px; }
@@ -294,8 +295,9 @@ foreach ($items as $it) {
     .thermal-receipt.size-58 .th-meta       { font-size: 9px; }
     .thermal-receipt.size-58 .th-item-title { font-size: 9.5px; word-break: break-word; }
     .thermal-receipt.size-58 .th-item-sub   { font-size: 9px; }
+    .thermal-receipt.size-58 .th-payable    { font-size: 9.5px; font-weight: 700; }
     .thermal-receipt.size-58 .th-total      { font-size: 12.5px; }
-    .thermal-receipt.size-58 .th-due        { font-size: 10px; }
+    .thermal-receipt.size-58 .th-due        { font-size: 9px; }
     .thermal-receipt.size-58 .th-khata      { font-size: 10.5px; }
     .thermal-receipt.size-58 .th-footer     { font-size: 8.5px; }
     .thermal-receipt.size-58 .th-credits    { font-size: 8px; }
@@ -460,21 +462,22 @@ foreach ($items as $it) {
 
       <!-- Itemized Table Header -->
       <div class="th-row th-meta" style="font-weight: 700;">
-        <span style="width: 40%; text-align: left;">ITEM / QTY (kg)</span>
-        <span style="width: 25%; text-align: right;">RATE</span>
-        <span style="width: 35%; text-align: right;">TOTAL (RS)</span>
+        <span style="width: 52%; text-align: left;">ITEM / QTY (kg)</span>
+        <span style="width: 22%; text-align: right;">RATE</span>
+        <span style="width: 26%; text-align: right;">TOTAL (RS)</span>
       </div>
       <div class="th-line"></div>
 
-      <!-- Items List -->
-      <?php foreach ($items as $idx => $it): ?>
-        <div style="margin-bottom: 5px;">
-          <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?> <span style="font-size:10px; font-weight:normal; border:1px solid #777; padding:1px 3px; border-radius:3px;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span></div>
-          <div class="th-row th-item-sub">
-            <span style="width: 40%; text-align: left;"><?= formatQty($it['qty'], $it['unit']) ?></span>
-            <span style="width: 25%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
-            <span style="width: 35%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
-          </div>
+      <!-- Items List (Single line per item, no Sr #) -->
+      <?php foreach ($items as $it): ?>
+        <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
+          <span style="width: 52%; text-align: left; padding-right: 2px; line-height: 1.25;">
+            <strong><?= htmlspecialchars($it['item_name']) ?></strong>
+            <small style="font-size: 9px; opacity: 0.85;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? '[بنڈل]' : '[نگ]' ?></small>
+            <span style="white-space: nowrap;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+          </span>
+          <span style="width: 22%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+          <span style="width: 26%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
         </div>
       <?php endforeach; ?>
 
@@ -520,36 +523,35 @@ foreach ($items as $it) {
         </div>
       <?php endif; ?>
 
-      <div class="th-double th-row th-total">
+      <!-- Total Payable (Smaller size) -->
+      <div class="th-row th-payable" style="border-top: 1px dashed #000; padding: 4px 0; margin-top: 5px;">
         <span>TOTAL PAYABLE:</span>
         <span class="font-num">Rs <?= number_format((float)$sale['grand_total'], 2) ?></span>
       </div>
 
-      <?php 
-      $hasDue = ((float)$sale['due_amount'] > 0.009);
-      $hasKhata = (!$isWalkIn && (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01));
-      if ($hasDue || $hasKhata): 
-      ?>
-        <div class="th-row th-due">
-          <span>Paid Amount / Advance:</span>
-          <span class="font-num"><?= number_format((float)$sale['paid_amount'], 2) ?></span>
-        </div>
-        <div class="th-row th-due" style="<?= $hasDue ? 'color: #991b1b; font-weight: bold;' : '' ?>">
-          <span><?= $hasDue ? 'Due on Delivery (بقیہ مال اتروائی پر):' : 'This Bill Due:' ?></span>
-          <span class="font-num"><?= number_format((float)$sale['due_amount'], 2) ?></span>
-        </div>
+      <!-- Paid Amount Row (Large prominent size) -->
+      <div class="th-double th-row th-total">
+        <span>PAID AMOUNT:</span>
+        <span class="font-num">Rs <?= number_format((float)$sale['paid_amount'], 2) ?></span>
+      </div>
 
-        <?php if ($hasKhata): ?>
-          <div class="th-line"></div>
-          <div class="th-row th-meta">
-            <span>Previous Balance:</span>
-            <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
-          </div>
-          <div class="th-row th-khata">
-            <span>TOTAL KHATA DUE:</span>
-            <span class="font-num"><?= formatCurrency($currBalance) ?></span>
-          </div>
-        <?php endif; ?>
+      <?php if ((float)$sale['due_amount'] > 0.009): ?>
+        <div class="th-row th-due" style="color: #991b1b; font-weight: bold; margin-top: 3px;">
+          <span>Due on Delivery (بقیہ مال اتروائی پر):</span>
+          <span class="font-num">Rs <?= number_format((float)$sale['due_amount'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!$isWalkIn && (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01)): ?>
+        <div class="th-line"></div>
+        <div class="th-row th-meta">
+          <span>Previous Balance:</span>
+          <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
+        </div>
+        <div class="th-row th-khata">
+          <span>TOTAL KHATA DUE:</span>
+          <span class="font-num"><?= formatCurrency($currBalance) ?></span>
+        </div>
       <?php endif; ?>
 
       <div class="th-line"></div>

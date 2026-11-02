@@ -201,8 +201,9 @@ $isThermal = ($size === '80' || $size === '58');
     .thermal-receipt.size-80 .th-meta       { font-size: 11px; }
     .thermal-receipt.size-80 .th-item-title { font-size: 11.5px; word-break: break-word; }
     .thermal-receipt.size-80 .th-item-sub   { font-size: 10.5px; }
+    .thermal-receipt.size-80 .th-payable    { font-size: 11.5px; font-weight: 700; }
     .thermal-receipt.size-80 .th-total      { font-size: 15px; }
-    .thermal-receipt.size-80 .th-due        { font-size: 12px; }
+    .thermal-receipt.size-80 .th-due        { font-size: 11px; }
     .thermal-receipt.size-80 .th-khata      { font-size: 13px; }
     .thermal-receipt.size-80 .th-footer     { font-size: 10px; }
     .thermal-receipt.size-80 .th-credits    { font-size: 9px; }
@@ -213,8 +214,9 @@ $isThermal = ($size === '80' || $size === '58');
     .thermal-receipt.size-58 .th-meta       { font-size: 9px; }
     .thermal-receipt.size-58 .th-item-title { font-size: 9.5px; word-break: break-word; }
     .thermal-receipt.size-58 .th-item-sub   { font-size: 9px; }
+    .thermal-receipt.size-58 .th-payable    { font-size: 9.5px; font-weight: 700; }
     .thermal-receipt.size-58 .th-total      { font-size: 12.5px; }
-    .thermal-receipt.size-58 .th-due        { font-size: 10px; }
+    .thermal-receipt.size-58 .th-due        { font-size: 9.5px; }
     .thermal-receipt.size-58 .th-khata      { font-size: 10.5px; }
     .thermal-receipt.size-58 .th-footer     { font-size: 8.5px; }
     .thermal-receipt.size-58 .th-credits    { font-size: 8px; }
@@ -365,21 +367,22 @@ $isThermal = ($size === '80' || $size === '58');
 
       <!-- Itemized Header -->
       <div class="th-row th-meta" style="font-weight: 700;">
-        <span style="width: 40%; text-align: left;">ITEM / QTY (kg)</span>
-        <span style="width: 25%; text-align: right;">RATE</span>
-        <span style="width: 35%; text-align: right;">TOTAL (RS)</span>
+        <span style="width: 52%; text-align: left;">ITEM / QTY (kg)</span>
+        <span style="width: 22%; text-align: right;">RATE</span>
+        <span style="width: 26%; text-align: right;">TOTAL (RS)</span>
       </div>
       <div class="th-line"></div>
 
-      <!-- Items List -->
-      <?php foreach ($items as $idx => $it): ?>
-        <div style="margin-bottom: 5px;">
-          <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?> <span style="font-size:10px; font-weight:normal; border:1px solid #777; padding:1px 3px; border-radius:3px;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span></div>
-          <div class="th-row th-item-sub">
-            <span style="width: 40%; text-align: left;"><?= formatQty($it['qty'], $it['unit']) ?></span>
-            <span style="width: 25%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
-            <span style="width: 35%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
-          </div>
+      <!-- Items List (Single line per item, no Sr #) -->
+      <?php foreach ($items as $it): ?>
+        <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
+          <span style="width: 52%; text-align: left; padding-right: 2px; line-height: 1.25;">
+            <strong><?= htmlspecialchars($it['item_name']) ?></strong>
+            <small style="font-size: 9px; opacity: 0.85;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? '[بنڈل]' : '[نگ]' ?></small>
+            <span style="white-space: nowrap;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+          </span>
+          <span style="width: 22%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+          <span style="width: 26%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
         </div>
       <?php endforeach; ?>
 
