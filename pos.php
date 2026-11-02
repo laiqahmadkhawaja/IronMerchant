@@ -104,8 +104,21 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <div class="row g-2 align-items-end mb-3">
+        <div class="col-6 col-sm-6 col-md-2">
+          <label class="form-label">No. of Bdl (تعداد)</label>
+          <input type="number" id="itemPackingQty" class="form-control" placeholder="e.g. 5" step="any" min="0">
+        </div>
+
+        <div class="col-6 col-sm-6 col-md-2">
+          <label class="form-label">Type (نوعیت)</label>
+          <select id="itemPacking" class="form-select">
+            <option value="Bundle">Bundle (بنڈل)</option>
+            <option value="Piece" selected>Piece / Pc (نگ)</option>
+          </select>
+        </div>
+
         <div class="col-12 col-sm-6 col-md-3">
-          <label class="form-label">Product Name / Saria / Girder</label>
+          <label class="form-label">Product Name</label>
           <select id="itemSelect" class="form-select" onchange="onItemSelectChange()">
             <?php foreach ($items as $it): 
               $isOut = (float)$it['stock_qty'] <= 0;
@@ -117,21 +130,8 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           </select>
         </div>
 
-        <div class="col-6 col-sm-6 col-md-2">
-          <label class="form-label">Type (نوعیت)</label>
-          <select id="itemPacking" class="form-select">
-            <option value="Bundle">Bundle (بنڈل)</option>
-            <option value="Piece" selected>Piece / Pc (نگ)</option>
-          </select>
-        </div>
-
-        <div class="col-6 col-sm-6 col-md-2">
-          <label class="form-label">No. of Bdl/Pc (تعداد)</label>
-          <input type="number" id="itemPackingQty" class="form-control" placeholder="e.g. 5" step="any" min="0">
-        </div>
-
         <div class="col-6 col-sm-4 col-md-2">
-          <label class="form-label">Weight / Qty (kg)</label>
+          <label class="form-label">Weight (kg)</label>
           <input type="number" id="itemQty" class="form-control" placeholder="e.g. 500" step="any">
         </div>
 
@@ -142,7 +142,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
         <div class="col-12 col-sm-4 col-md-1">
           <button type="button" class="btn btn-zb-gold w-100 fw-bold px-1" id="addItemBtn" onclick="addItemToCart()" title="Add to Bill">
-            <i class="fa-solid fa-plus me-1"></i> Add
+            <i class="fa-solid fa-plus me-1"></i>
           </button>
         </div>
       </div>
@@ -152,9 +152,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
+              <th style="width: 95px;">No. of Bdl (تعداد)</th>
+              <th style="width: 105px;">Type (نوعیت)</th>
               <th>Product</th>
-              <th style="width: 105px;">Type</th>
-              <th style="width: 80px;">No. (تعداد)</th>
               <th>Weight (kg)</th>
               <th>Rate (Rs)</th>
               <th class="text-end">Total Amount</th>
@@ -475,7 +475,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     calculateBillTotals();
 
     // Refocus item select so cashier can immediately select next product
-    sel.focus();
+    const pQty = document.getElementById('itemPackingQty'); if (pQty) { pQty.focus(); } else { sel.focus(); }
   }
 
   function removeCartItem(index) {
@@ -513,9 +513,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
       return `
         <tr>
-          <td><strong>${name}</strong></td>
-          <td>${typeBadge}</td>
           <td>${packCountDisplay}</td>
+          <td>${typeBadge}</td>
+          <td><strong>${name}</strong></td>
           <td>${qty.toLocaleString()} ${unit}</td>
           <td>Rs ${rate.toLocaleString()}</td>
           <td class="text-end fw-bold">Rs ${lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
@@ -729,20 +729,21 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     const labourInput = document.getElementById('labourCharge');
     const deliveryInput = document.getElementById('deliveryCharge');
 
-    // Auto-focus on item select when page loads
-    if (itemSel) {
+    // Auto-focus on No of Bdl or item select when page loads
+    const itemPackingQty = document.getElementById('itemPackingQty');
+    if (itemPackingQty) {
+      itemPackingQty.focus();
+    } else if (itemSel) {
       itemSel.focus();
     }
 
-    // Step 1: In Item Select, pressing Enter moves focus to Qty / Bdl
-    if (itemSel) {
-      itemSel.addEventListener('keydown', (e) => {
+    // Step 1: In No. of Bdl, pressing Enter moves focus to Item Select (or Qty)
+    if (itemPackingQty) {
+      itemPackingQty.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const pQty = document.getElementById('itemPackingQty');
-          if (pQty) {
-            pQty.focus();
-            pQty.select();
+          if (itemSel) {
+            itemSel.focus();
           } else if (itemQty) {
             itemQty.focus();
             itemQty.select();
@@ -751,9 +752,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       });
     }
 
-    const itemPackingQty = document.getElementById('itemPackingQty');
-    if (itemPackingQty) {
-      itemPackingQty.addEventListener('keydown', (e) => {
+    // Step 2: In Item Select, pressing Enter moves focus to Weight (Qty)
+    if (itemSel) {
+      itemSel.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           if (itemQty) {
