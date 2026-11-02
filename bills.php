@@ -51,7 +51,7 @@ $stmt = $db->prepare("
     SELECT 
         s.id, s.invoice_no, s.sale_date, s.sale_time, s.customer_id, s.customer_name_custom, s.customer_phone_custom,
         p.name AS customer_name, p.phone AS customer_phone,
-        s.subtotal, s.labour_charge, s.delivery_charge, s.additional_charges, s.discount, s.grand_total, s.paid_amount, s.due_amount,
+        s.subtotal, s.labour_charge, s.cutting_charge, s.delivery_charge, s.additional_charges, s.discount, s.grand_total, s.paid_amount, s.due_amount,
         s.payment_status, s.payment_method, (s.grand_total - s.total_cogs) AS profit, s.status
     FROM sales s
     JOIN parties p ON s.customer_id = p.id

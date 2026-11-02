@@ -459,25 +459,25 @@ foreach ($items as $it) {
       </div>
       <?php if ($labourAmount > 0): ?>
         <div class="th-row th-meta">
-          <span>Labour / Crane (مزدوری):</span>
+          <span class="ur fw-bold">لوڈنگ:</span>
           <span class="font-num">+ <?= number_format($labourAmount, 2) ?></span>
-        </div>
-      <?php endif; ?>
-      <?php if ($deliveryAmount > 0): ?>
-        <div class="th-row th-meta">
-          <span>Delivery / Freight (کرایہ):</span>
-          <span class="font-num">+ <?= number_format($deliveryAmount, 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ($cuttingAmount > 0): ?>
         <div class="th-row th-meta">
-          <span>Cutting Charges (کٹائی):</span>
+          <span class="ur fw-bold">کٹنگ:</span>
           <span class="font-num">+ <?= number_format($cuttingAmount, 2) ?></span>
         </div>
       <?php endif; ?>
-      <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
+      <?php if ($deliveryAmount > 0): ?>
         <div class="th-row th-meta">
-          <span>Labour / Delivery:</span>
+          <span class="ur fw-bold">کرایہ:</span>
+          <span class="font-num">+ <?= number_format($deliveryAmount, 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && $cuttingAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
+        <div class="th-row th-meta">
+          <span class="ur fw-bold">لوڈنگ و کرایہ:</span>
           <span class="font-num">+ <?= number_format((float)$sale['additional_charges'], 2) ?></span>
         </div>
       <?php endif; ?>
@@ -776,38 +776,34 @@ foreach ($items as $it) {
             <?php if ($labourAmount > 0): ?>
               <div class="d-flex justify-content-between align-items-center py-1 text-primary">
                 <div class="d-flex align-items-center gap-1">
-                  <span>Labour / Crane Charges</span>
-                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">مزدوری چارجز</span>
+                  <span class="ur fw-bold" dir="rtl" style="font-size: 13px; line-height: 1.4;">لوڈنگ</span>
                 </div>
                 <span class="font-num fw-bold">+ <?= formatMoney($labourAmount) ?></span>
-              </div>
-            <?php endif; ?>
-
-            <?php if ($deliveryAmount > 0): ?>
-              <div class="d-flex justify-content-between align-items-center py-1 text-primary">
-                <div class="d-flex align-items-center gap-1">
-                  <span>Delivery / Freight Charges</span>
-                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">گاڑی کرایہ / فریٹ چارجز</span>
-                </div>
-                <span class="font-num fw-bold">+ <?= formatMoney($deliveryAmount) ?></span>
               </div>
             <?php endif; ?>
 
             <?php if ($cuttingAmount > 0): ?>
               <div class="d-flex justify-content-between align-items-center py-1 text-primary">
                 <div class="d-flex align-items-center gap-1">
-                  <span>Cutting Charges</span>
-                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">کٹائی چارجز</span>
+                  <span class="ur fw-bold" dir="rtl" style="font-size: 13px; line-height: 1.4;">کٹنگ</span>
                 </div>
                 <span class="font-num fw-bold">+ <?= formatMoney($cuttingAmount) ?></span>
               </div>
             <?php endif; ?>
 
-            <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
+            <?php if ($deliveryAmount > 0): ?>
               <div class="d-flex justify-content-between align-items-center py-1 text-primary">
                 <div class="d-flex align-items-center gap-1">
-                  <span>Labour / Freight</span>
-                  <span class="ur" dir="rtl" style="font-size: 11px; line-height: 1.4;">مزدوری و کرایہ</span>
+                  <span class="ur fw-bold" dir="rtl" style="font-size: 13px; line-height: 1.4;">کرایہ</span>
+                </div>
+                <span class="font-num fw-bold">+ <?= formatMoney($deliveryAmount) ?></span>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($labourAmount <= 0 && $deliveryAmount <= 0 && $cuttingAmount <= 0 && (float)$sale['additional_charges'] > 0): ?>
+              <div class="d-flex justify-content-between align-items-center py-1 text-primary">
+                <div class="d-flex align-items-center gap-1">
+                  <span class="ur fw-bold" dir="rtl" style="font-size: 13px; line-height: 1.4;">لوڈنگ و کرایہ</span>
                 </div>
                 <span class="font-num fw-bold">+ <?= formatMoney($sale['additional_charges']) ?></span>
               </div>
