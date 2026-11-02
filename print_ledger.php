@@ -32,6 +32,7 @@ $endDate   = trim($_GET['end_date'] ?? date('Y-m-d'));
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
+$compLandline = trim((string)($company['company_landline'] ?? ''));
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
@@ -638,7 +639,10 @@ if ($type === 'customer') {
           </div>
         </div>
         <div class="text-end" style="font-size: 11.5px; line-height: 1.6;">
-          <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compPhone) ?></strong></div>
+          <?php if (!empty($compLandline)): ?>
+            <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compLandline) ?></strong></div>
+          <?php endif; ?>
+          <div><i class="fa-solid fa-mobile-screen me-1 text-primary"></i> <?= htmlspecialchars($compPhone) ?></div>
           <div><i class="fa-solid fa-location-dot me-1 text-primary"></i> <?= htmlspecialchars($compAddress) ?></div>
           <div class="text-muted" style="font-size: 10.5px;">Generated: <?= date('d-M-Y h:i A') ?></div>
         </div>

@@ -46,6 +46,7 @@ $charges = $chargesStmt->fetchAll();
 $company = getCompanySettings();
 $compName = $company['company_name'] ?? 'Zafar Brothers Iron Merchants';
 $compUrdu = (!empty($company['company_urdu']) && strpos($company['company_urdu'], '?') === false) ? $company['company_urdu'] : 'ظفر برادرز آئرن مرچنٹس';
+$compLandline = trim((string)($company['company_landline'] ?? ''));
 $compPhone = $company['company_phone'] ?? '0300-9641483 · 0300-7499499';
 $compAddress = $company['company_address'] ?? 'Old Chungi, Hafizabad Road, Gujranwala';
 
@@ -216,8 +217,9 @@ foreach ($items as $it) {
     .thermal-receipt.size-80 .th-meta       { font-size: 11px; }
     .thermal-receipt.size-80 .th-item-title { font-size: 11.5px; word-break: break-word; }
     .thermal-receipt.size-80 .th-item-sub   { font-size: 10.5px; }
+    .thermal-receipt.size-80 .th-payable    { font-size: 11.5px; font-weight: 700; }
     .thermal-receipt.size-80 .th-total      { font-size: 15px; }
-    .thermal-receipt.size-80 .th-due        { font-size: 12px; }
+    .thermal-receipt.size-80 .th-due        { font-size: 11px; }
     .thermal-receipt.size-80 .th-khata      { font-size: 13px; }
     .thermal-receipt.size-80 .th-footer     { font-size: 10px; }
     .thermal-receipt.size-80 .th-credits    { font-size: 9px; }
@@ -228,8 +230,9 @@ foreach ($items as $it) {
     .thermal-receipt.size-58 .th-meta       { font-size: 9px; }
     .thermal-receipt.size-58 .th-item-title { font-size: 9.5px; word-break: break-word; }
     .thermal-receipt.size-58 .th-item-sub   { font-size: 9px; }
+    .thermal-receipt.size-58 .th-payable    { font-size: 9.5px; font-weight: 700; }
     .thermal-receipt.size-58 .th-total      { font-size: 12.5px; }
-    .thermal-receipt.size-58 .th-due        { font-size: 10px; }
+    .thermal-receipt.size-58 .th-due        { font-size: 9.5px; }
     .thermal-receipt.size-58 .th-khata      { font-size: 10.5px; }
     .thermal-receipt.size-58 .th-footer     { font-size: 8.5px; }
     .thermal-receipt.size-58 .th-credits    { font-size: 8px; }
@@ -323,10 +326,25 @@ foreach ($items as $it) {
     <!-- ==================== ESC/POS THERMAL RECEIPT (80mm & 58mm) ==================== -->
     <div class="thermal-receipt size-<?= $size ?>">
       <div class="th-center">
-        <div class="ur th-company-ur"><?= htmlspecialchars($compUrdu) ?></div>
-        <div class="th-company-en"><?= htmlspecialchars($compName) ?></div>
+        <!-- Separate Urdu block with adequate vertical line-height -->
+        <div class="ur th-company-ur">
+          <?= htmlspecialchars($compUrdu) ?>
+        </div>
+        <!-- English Name with top clearance -->
+        <div class="th-company-en" style="letter-spacing: 0.5px; margin-top: 2px;">
+          <?= strtoupper(htmlspecialchars($compName)) ?>
+        </div>
+        <div class="th-sub" style="margin-top: 2px;">Gujranwala Steel Group of Industry</div>
+        <div class="th-sub">Deals in: Grade 40/60 Steel &amp; G.I Wire</div>
+        <?php if (!empty($compLandline)): ?>
+          <div class="th-sub" style="margin-top: 2px;">
+            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+          </div>
+        <?php endif; ?>
+        <div class="th-sub" style="margin-top: 2px;">
+          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
+        </div>
         <div class="th-sub"><?= htmlspecialchars($compAddress) ?></div>
-        <div class="th-sub font-num">TEL: <?= htmlspecialchars($compPhone) ?></div>
         <div class="th-double" style="margin-top: 5px;">
           <div style="letter-spacing: 1px;">GOODS RECEIPT NOTE (GRN)</div>
           <div class="ur" style="font-size: 11px;">رسید خریداری مال و سٹاک انوارڈ</div>
@@ -336,45 +354,43 @@ foreach ($items as $it) {
       <!-- Metadata -->
       <div class="th-row th-meta">
         <span>GRN #: <?= htmlspecialchars($purchase['purchase_no']) ?></span>
-        <span><?= htmlspecialchars($purchase['purchase_date']) ?></span>
+        <span><?= date('d/m/Y', strtotime($purchase['purchase_date'])) ?></span>
       </div>
       <div class="th-row th-meta">
-        <span>MILL / SUPP:</span>
-        <span><?= htmlspecialchars($purchase['supplier_name']) ?></span>
+        <span>TIME: <?= date('h:i A', strtotime($purchase['created_at'] ?? $purchase['purchase_date'])) ?></span>
+        <span>OP: <?= htmlspecialchars($purchase['operator_name'] ?? 'Admin') ?></span>
       </div>
-      <?php if (!empty($purchase['supplier_inv_no'])): ?>
-        <div class="th-row th-meta">
-          <span>MILL INV / BILTY:</span>
-          <span><?= htmlspecialchars($purchase['supplier_inv_no']) ?></span>
-        </div>
+      <div class="th-meta">MILL / SUPP: <?= htmlspecialchars($purchase['supplier_name']) ?></div>
+      <?php 
+        $suppPhone = trim((string)($purchase['supplier_phone'] ?? ''));
+        if ($suppPhone !== '' && $suppPhone !== '0300123456'): 
+      ?>
+        <div class="th-meta">PHONE: <?= htmlspecialchars($suppPhone) ?></div>
       <?php endif; ?>
-      <div class="th-row th-meta">
-        <span>YARD / WAREHOUSE:</span>
-        <span><?= htmlspecialchars($purchase['warehouse'] ?? 'Main Yard') ?></span>
-      </div>
-      <div class="th-row th-meta">
-        <span>RECEIVED BY:</span>
-        <span><?= htmlspecialchars($purchase['operator_name'] ?? 'Admin') ?></span>
-      </div>
+      <?php if (!empty($purchase['supplier_inv_no'])): ?>
+        <div class="th-meta">MILL INV / BILTY: <?= htmlspecialchars($purchase['supplier_inv_no']) ?></div>
+      <?php endif; ?>
+      <div class="th-meta">YARD / WAREHOUSE: <?= htmlspecialchars($purchase['warehouse'] ?? 'Main Yard') ?></div>
 
       <div class="th-line"></div>
 
       <!-- Item Table Header -->
-      <div class="th-row th-meta">
-        <span>ITEM / QTY</span>
-        <span>LANDED RATE</span>
-        <span>TOTAL (RS)</span>
+      <div class="th-row th-meta" style="font-weight: 700;">
+        <span style="width: 52%; text-align: left;">ITEM / QTY (kg)</span>
+        <span style="width: 22%; text-align: right;">RATE</span>
+        <span style="width: 26%; text-align: right;">TOTAL (RS)</span>
       </div>
       <div class="th-line"></div>
 
-      <!-- Items List -->
-      <?php foreach ($items as $idx => $it): ?>
-        <div style="margin-bottom: 4px;">
-          <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?></div>
-          <div class="th-row th-item-sub">
-            <span><?= formatQty($it['qty'], $it['unit']) ?> @ <?= number_format((float)$it['landed_unit_rate'], 2) ?></span>
-            <span class="font-num"><?= number_format((float)$it['landed_cost'], 2) ?></span>
-          </div>
+      <!-- Items List (Single line per item, no Sr #) -->
+      <?php foreach ($items as $it): ?>
+        <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
+          <span style="width: 52%; text-align: left; padding-right: 2px; line-height: 1.25;">
+            <strong><?= htmlspecialchars($it['item_name']) ?></strong>
+            <span style="white-space: nowrap;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+          </span>
+          <span style="width: 22%; text-align: right;" class="font-num"><?= number_format((float)$it['landed_unit_rate'], 2) ?></span>
+          <span style="width: 26%; text-align: right;" class="font-num"><?= number_format((float)$it['landed_cost'], 2) ?></span>
         </div>
       <?php endforeach; ?>
 
@@ -414,30 +430,37 @@ foreach ($items as $it) {
         </div>
       <?php endif; ?>
 
-      <div class="th-double th-row th-total">
+      <!-- Total Payable (Smaller size) -->
+      <div class="th-row th-payable" style="border-top: 1px dashed #000; padding: 4px 0; margin-top: 5px;">
         <span>TOTAL PAYABLE:</span>
         <span class="font-num">Rs <?= number_format((float)$purchase['grand_total'], 2) ?></span>
       </div>
 
-      <div class="th-row th-due">
-        <span>Paid Amount:</span>
-        <span class="font-num"><?= number_format((float)$purchase['paid_amount'], 2) ?></span>
-      </div>
-      <div class="th-row th-due">
-        <span>This Bill Due:</span>
-        <span class="font-num"><?= number_format((float)$purchase['due_amount'], 2) ?></span>
+      <!-- Paid Amount Row (Large prominent size) -->
+      <div class="th-double th-row th-total">
+        <span>PAID AMOUNT:</span>
+        <span class="font-num">Rs <?= number_format((float)$purchase['paid_amount'], 2) ?></span>
       </div>
 
+      <?php if ((float)$purchase['due_amount'] > 0.009): ?>
+        <div class="th-row th-due" style="color: #991b1b; font-weight: bold; margin-top: 3px;">
+          <span>This Bill Due (بقیہ بل رقم):</span>
+          <span class="font-num">Rs <?= number_format((float)$purchase['due_amount'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+
       <!-- Supplier Ledger Balance -->
-      <div class="th-line"></div>
-      <div class="th-row th-meta">
-        <span>Previous Balance:</span>
-        <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
-      </div>
-      <div class="th-row th-khata">
-        <span>TOTAL SUPPLIER DUE:</span>
-        <span class="font-num"><?= formatCurrency($currBalance) ?></span>
-      </div>
+      <?php if (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01): ?>
+        <div class="th-line"></div>
+        <div class="th-row th-meta">
+          <span>Previous Balance:</span>
+          <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
+        </div>
+        <div class="th-row th-khata">
+          <span>TOTAL SUPPLIER DUE:</span>
+          <span class="font-num"><?= formatCurrency($currBalance) ?></span>
+        </div>
+      <?php endif; ?>
 
       <div class="th-line"></div>
 
@@ -469,7 +492,11 @@ foreach ($items as $it) {
                 <?= htmlspecialchars($compName) ?>
               </div>
               <div style="font-size: 12px; color: #64748b; font-weight: 600;">
-                <?= htmlspecialchars($compAddress) ?> · Tel: <?= htmlspecialchars($compPhone) ?>
+                <?php if (!empty($compLandline)): ?>
+                  <span><i class="fa-solid fa-phone text-primary me-1"></i> <?= htmlspecialchars($compLandline) ?></span> · 
+                <?php endif; ?>
+                <span><i class="fa-solid fa-mobile-screen text-primary me-1"></i> <?= htmlspecialchars($compPhone) ?></span>
+                <div><i class="fa-solid fa-location-dot text-primary me-1"></i> <?= htmlspecialchars($compAddress) ?></div>
               </div>
             </div>
           </div>

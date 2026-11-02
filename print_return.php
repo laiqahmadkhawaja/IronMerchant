@@ -399,31 +399,38 @@ $isThermal = ($size === '80' || $size === '58');
       </div>
       <?php if ((float)($ret['labour_deduction'] ?? 0) > 0): ?>
         <div class="th-row th-meta">
-          <span>Labour Deduction (لیبر):</span>
+          <span class="ur fw-bold">لوڈنگ کٹوتی:</span>
           <span class="font-num">− <?= number_format((float)$ret['labour_deduction'], 2) ?></span>
-        </div>
-      <?php endif; ?>
-      <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
-        <div class="th-row th-meta">
-          <span>Freight Deduction (کرایہ):</span>
-          <span class="font-num">− <?= number_format((float)$ret['freight_deduction'], 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ((float)($ret['cutting_deduction'] ?? 0) > 0): ?>
         <div class="th-row th-meta">
-          <span>Cutting Deduction (کٹائی):</span>
+          <span class="ur fw-bold">کٹنگ کٹوتی:</span>
           <span class="font-num">− <?= number_format((float)$ret['cutting_deduction'], 2) ?></span>
+        </div>
+      <?php endif; ?>
+      <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
+        <div class="th-row th-meta">
+          <span class="ur fw-bold">کرایہ کٹوتی:</span>
+          <span class="font-num">− <?= number_format((float)$ret['freight_deduction'], 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ((float)$ret['deduction_charges'] > 0 && ((float)($ret['labour_deduction'] ?? 0) <= 0 && (float)($ret['freight_deduction'] ?? 0) <= 0 && (float)($ret['cutting_deduction'] ?? 0) <= 0)): ?>
         <div class="th-row th-meta">
-          <span>Deduction / Cutting:</span>
+          <span class="ur fw-bold">کٹوتیاں:</span>
           <span class="font-num">− <?= number_format((float)$ret['deduction_charges'], 2) ?></span>
         </div>
       <?php endif; ?>
 
+      <!-- Gross Return Value (Smaller size) -->
+      <div class="th-row th-payable" style="border-top: 1px dashed #000; padding: 4px 0; margin-top: 5px;">
+        <span>GROSS RETURN VALUE:</span>
+        <span class="font-num">Rs <?= number_format((float)$ret['subtotal'], 2) ?></span>
+      </div>
+
+      <!-- Net Refund / Credit (Large prominent size) -->
       <div class="th-double th-row th-total">
-        <span>NET CREDIT/REFUND:</span>
+        <span>NET REFUND / CREDIT:</span>
         <span class="font-num">Rs <?= number_format((float)$ret['net_amount'], 2) ?></span>
       </div>
 
@@ -638,20 +645,10 @@ $isThermal = ($size === '80' || $size === '58');
           <?php if ((float)($ret['labour_deduction'] ?? 0) > 0): ?>
             <div class="d-flex justify-content-between align-items-center py-1 text-danger">
               <div class="d-flex align-items-center gap-1">
-                <span>Labour / Crane Deduction</span>
-                <span class="ur" dir="rtl" style="font-size: 11px;">لیبر کٹوتی</span>
+                <span>Loading Deduction</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">لوڈنگ کٹوتی</span>
               </div>
               <span class="font-num fw-bold">− <?= formatMoney($ret['labour_deduction']) ?></span>
-            </div>
-          <?php endif; ?>
-
-          <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
-            <div class="d-flex justify-content-between align-items-center py-1 text-danger">
-              <div class="d-flex align-items-center gap-1">
-                <span>Freight / Delivery Deduction</span>
-                <span class="ur" dir="rtl" style="font-size: 11px;">کرایہ / گاڑی کٹوتی</span>
-              </div>
-              <span class="font-num fw-bold">− <?= formatMoney($ret['freight_deduction']) ?></span>
             </div>
           <?php endif; ?>
 
@@ -659,9 +656,19 @@ $isThermal = ($size === '80' || $size === '58');
             <div class="d-flex justify-content-between align-items-center py-1 text-danger">
               <div class="d-flex align-items-center gap-1">
                 <span>Cutting Deduction</span>
-                <span class="ur" dir="rtl" style="font-size: 11px;">کٹائی کٹوتی</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">کٹنگ کٹوتی</span>
               </div>
               <span class="font-num fw-bold">− <?= formatMoney($ret['cutting_deduction']) ?></span>
+            </div>
+          <?php endif; ?>
+
+          <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
+            <div class="d-flex justify-content-between align-items-center py-1 text-danger">
+              <div class="d-flex align-items-center gap-1">
+                <span>Freight / Delivery Deduction</span>
+                <span class="ur" dir="rtl" style="font-size: 11px;">کرایہ کٹوتی</span>
+              </div>
+              <span class="font-num fw-bold">− <?= formatMoney($ret['freight_deduction']) ?></span>
             </div>
           <?php endif; ?>
 
