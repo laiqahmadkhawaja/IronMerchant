@@ -708,41 +708,41 @@ $activeShift = getActiveShift($pdo);
               <div class="p-3 bg-light rounded-3 border">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <span class="fw-bold" style="font-size: 13px; color: #1e293b;">
-                    <i class="fa-solid fa-scissors me-1 text-danger"></i> Return Deductions (واپسی کٹوتیاں — لیبر، کرایہ، کٹائی)
+                    <i class="fa-solid fa-scissors me-1 text-danger"></i> Return Deductions (واپسی کٹوتیاں — لوڈنگ، کٹنگ، کرایہ)
                   </span>
                   <span class="text-muted" style="font-size: 11px;">Enter deduction amounts (if applicable)</span>
                 </div>
                 <div class="row g-2">
-                  <!-- 1. Labour Deduction -->
-                  <div class="col-12 col-md-4">
-                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
-                      <span class="fw-semibold">1. Labour / Crane (لیبر کٹوتی)</span>
+                  <!-- 1. لوڈنگ (Loading) -->
+                  <div class="col-12 col-sm-4">
+                    <label class="form-label d-flex justify-content-between align-items-center">
+                      <span class="ur fw-bold" style="font-size: 13.5px;">لوڈنگ</span>
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="labour_deduction" id="retLabour" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="any" min="0.00" name="labour_deduction" id="retLabour" placeholder="0" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
 
-                  <!-- 2. Freight Deduction -->
-                  <div class="col-12 col-md-4">
-                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
-                      <span class="fw-semibold">2. Freight / Delivery (کرایہ کٹوتی)</span>
+                  <!-- 2. کٹنگ (Cutting) -->
+                  <div class="col-12 col-sm-4">
+                    <label class="form-label d-flex justify-content-between align-items-center">
+                      <span class="ur fw-bold" style="font-size: 13.5px;">کٹنگ</span>
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="freight_deduction" id="retFreight" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="any" min="0.00" name="cutting_deduction" id="retCutting" placeholder="0" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
 
-                  <!-- 3. Cutting Deduction -->
-                  <div class="col-12 col-md-4">
-                    <label class="form-label d-flex justify-content-between" style="font-size: 12px; margin-bottom: 4px;">
-                      <span class="fw-semibold">3. Cutting (کٹائی کٹوتی)</span>
+                  <!-- 3. کرایہ (Delivery) -->
+                  <div class="col-12 col-sm-4">
+                    <label class="form-label d-flex justify-content-between align-items-center">
+                      <span class="ur fw-bold" style="font-size: 13.5px;">کرایہ</span>
                     </label>
                     <div class="input-group">
                       <span class="input-group-text">Rs</span>
-                      <input type="number" step="0.01" min="0.00" name="cutting_deduction" id="retCutting" placeholder="0.00" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
+                      <input type="number" step="any" min="0.00" name="freight_deduction" id="retFreight" placeholder="0" onfocus="this.select()" class="form-control" oninput="calculateReturnTotal()">
                     </div>
                   </div>
                 </div>
