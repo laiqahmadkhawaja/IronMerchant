@@ -41,6 +41,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
         }
         $refundType  = trim($_POST['refund_type'] ?? 'credit_to_khata');
         $packingType = in_array(trim($_POST['packing_type'] ?? ''), ['Bundle', 'Piece'], true) ? trim($_POST['packing_type']) : 'Piece';
+        $packingQty  = max(0.0, (float)($_POST['packing_qty'] ?? 0));
         $accountId   = (int)($_POST['financial_account_id'] ?? 0);
         $refNo       = trim($_POST['reference_no'] ?? '');
         $reason      = trim($_POST['reason'] ?? '');
@@ -226,11 +227,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
 
                     // Insert return item
                     $insRetItem = $pdo->prepare("
-                        INSERT INTO return_items (return_id, item_id, packing_type, qty, unit_rate, line_total, cost_price, total_cost)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO return_items (return_id, item_id, packing_type, packing_qty, qty, unit_rate, line_total, cost_price, total_cost)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $insRetItem->execute([
-                        $retId, $itemId, $packingType, $qty, $unitRate, $grossAmount, $itemCostRate, $cogsRestored
+                        $retId, $itemId, $packingType, $packingQty, $qty, $unitRate, $grossAmount, $itemCostRate, $cogsRestored
                     ]);
 
                     // Update stock & Perpetual Weighted-Average Cost
@@ -309,11 +310,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
 
                     // Insert return item
                     $insRetItem = $pdo->prepare("
-                        INSERT INTO return_items (return_id, item_id, packing_type, qty, unit_rate, line_total, cost_price, total_cost)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO return_items (return_id, item_id, packing_type, packing_qty, qty, unit_rate, line_total, cost_price, total_cost)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $insRetItem->execute([
-                        $retId, $itemId, $packingType, $qty, $unitRate, $grossAmount, (float)$item['cost_price'], $netAmount
+                        $retId, $itemId, $packingType, $packingQty, $qty, $unitRate, $grossAmount, (float)$item['cost_price'], $netAmount
                     ]);
 
                     // Relieve inventory stock & moving average
@@ -342,7 +343,7 @@ $search     = trim($_GET['search'] ?? '');
 
 $query = "
     SELECT r.*, p.name AS party_name, p.type AS party_type, p.phone AS party_phone,
-           ri.item_id, ri.qty AS item_qty, ri.unit_rate AS item_rate, ri.packing_type, i.name AS item_name, i.unit AS item_unit,
+           ri.item_id, ri.qty AS item_qty, ri.unit_rate AS item_rate, ri.packing_type, ri.packing_qty, i.name AS item_name, i.unit AS item_unit,
            u.name AS user_name
     FROM returns r
     JOIN parties p ON r.party_id = p.id
@@ -560,7 +561,9 @@ $activeShift = getActiveShift($pdo);
                   <td>
                     <strong><?= htmlspecialchars($ret['item_name'] ?? 'Steel Item') ?></strong>
                     <?php if (!empty($ret['packing_type'])): ?>
-                      <span class="badge border <?= $ret['packing_type'] === 'Bundle' ? 'bg-warning text-dark' : 'bg-light text-dark' ?> ms-1" style="font-size: 10px;"><?= $ret['packing_type'] === 'Bundle' ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span>
+                      <span class="badge border <?= $ret['packing_type'] === 'Bundle' ? 'bg-warning text-dark' : 'bg-light text-dark' ?> ms-1" style="font-size: 10px;">
+                        <?= (float)($ret['packing_qty'] ?? 0) > 0 ? ((float)$ret['packing_qty'] + 0) . ' ' : '' ?><?= $ret['packing_type'] === 'Bundle' ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?>
+                      </span>
                     <?php endif; ?>
                     <div class="font-num text-primary fw-bold" style="font-size: 12px;">
                       <?= formatQty($ret['item_qty'], $ret['item_unit'] ?? 'kg') ?>
@@ -669,12 +672,18 @@ $activeShift = getActiveShift($pdo);
             </div>
 
             <!-- Packing / Type Selection -->
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-bold">Packing / Type (نوعیت) <span class="text-danger">*</span></label>
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">Type (نوعیت) <span class="text-danger">*</span></label>
               <select name="packing_type" id="retPacking" class="form-select">
                 <option value="Bundle">Bundle (بنڈل)</option>
                 <option value="Piece" selected>Piece / Pc (نگ / پیس)</option>
               </select>
+            </div>
+
+            <!-- No. of Bundle / Piece -->
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-bold">No. of Bdl/Pc (تعداد)</label>
+              <input type="number" step="any" min="0" name="packing_qty" id="retPackingQty" class="form-control" placeholder="0">
             </div>
 
             <!-- Return Quantity in KG -->

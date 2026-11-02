@@ -104,7 +104,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <div class="row g-2 align-items-end mb-3">
-        <div class="col-12 col-sm-6 col-md-4">
+        <div class="col-12 col-sm-6 col-md-3">
           <label class="form-label">Product Name / Saria / Girder</label>
           <select id="itemSelect" class="form-select" onchange="onItemSelectChange()">
             <?php foreach ($items as $it): 
@@ -118,11 +118,16 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         </div>
 
         <div class="col-6 col-sm-6 col-md-2">
-          <label class="form-label">Packing / Type (نوعیت)</label>
+          <label class="form-label">Type (نوعیت)</label>
           <select id="itemPacking" class="form-select">
             <option value="Bundle">Bundle (بنڈل)</option>
-            <option value="Piece" selected>Piece / Pc (نگ / پیس)</option>
+            <option value="Piece" selected>Piece / Pc (نگ)</option>
           </select>
+        </div>
+
+        <div class="col-6 col-sm-6 col-md-2">
+          <label class="form-label">No. of Bdl/Pc (تعداد)</label>
+          <input type="number" id="itemPackingQty" class="form-control" placeholder="e.g. 5" step="any" min="0">
         </div>
 
         <div class="col-6 col-sm-4 col-md-2">
@@ -135,9 +140,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           <input type="number" id="itemRate" class="form-control" placeholder="Rate" step="any">
         </div>
 
-        <div class="col-6 col-sm-4 col-md-2">
-          <button type="button" class="btn btn-zb-gold w-100 fw-bold" id="addItemBtn" onclick="addItemToCart()">
-            <i class="fa-solid fa-plus me-1"></i> Add <span class="badge bg-dark bg-opacity-25 ms-1" style="font-size: 10px;">↵</span>
+        <div class="col-12 col-sm-4 col-md-1">
+          <button type="button" class="btn btn-zb-gold w-100 fw-bold px-1" id="addItemBtn" onclick="addItemToCart()" title="Add to Bill">
+            <i class="fa-solid fa-plus me-1"></i> Add
           </button>
         </div>
       </div>
@@ -148,8 +153,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           <thead class="table-light">
             <tr>
               <th>Product</th>
-              <th style="width: 110px;">Type (نوعیت)</th>
-              <th>Qty (kg)</th>
+              <th style="width: 105px;">Type</th>
+              <th style="width: 80px;">No. (تعداد)</th>
+              <th>Weight (kg)</th>
               <th>Rate (Rs)</th>
               <th class="text-end">Total Amount</th>
               <th class="text-center" style="width: 50px;">Action</th>
@@ -157,7 +163,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           </thead>
           <tbody id="cartTableBody">
             <tr id="emptyCartRow">
-              <td colspan="6" class="text-center py-4 text-muted">
+              <td colspan="7" class="text-center py-4 text-muted">
                 <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
                 No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
               </td>
@@ -352,6 +358,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           'name' => (string)$it['name'],
           'unit' => (string)($it['unit'] ?? 'kg'),
           'packing_type' => (string)($it['packing_type'] ?? 'Piece'),
+          'packing_qty' => (float)($it['packing_qty'] ?? 0),
           'qty' => $qty,
           'rate' => $rate,
           'unit_rate' => $rate,
@@ -447,12 +454,15 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
     const packingInput = document.getElementById('itemPacking');
     const packingType = (packingInput && packingInput.value === 'Bundle') ? 'Bundle' : 'Piece';
+    const packingQtyInput = document.getElementById('itemPackingQty');
+    const packingQty = packingQtyInput ? (parseFloat(packingQtyInput.value) || 0) : 0;
 
     cart.push({
       item_id: itemId,
       name: itemName,
       unit: unit,
       packing_type: packingType,
+      packing_qty: packingQty,
       qty: qty,
       rate: rate,
       unit_rate: rate,
@@ -460,6 +470,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     });
 
     qtyInput.value = '';
+    if (packingQtyInput) packingQtyInput.value = '';
     renderCart();
     calculateBillTotals();
 
@@ -478,7 +489,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     if (!cart || !cart.length) {
       tbody.innerHTML = `
         <tr id="emptyCartRow">
-          <td colspan="6" class="text-center py-4 text-muted">
+          <td colspan="7" class="text-center py-4 text-muted">
             <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
             No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
           </td>
@@ -494,14 +505,17 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       const rate = parseFloat(it.unit_rate ?? it.rate) || 0;
       const lineTotal = parseFloat(it.line_total) || (qty * rate);
       const isBundle = (it.packing_type === 'Bundle');
+      const pQty = parseFloat(it.packing_qty) || 0;
       const typeBadge = isBundle 
         ? '<span class="badge bg-warning text-dark border"><i class="fa-solid fa-boxes-stacked me-1"></i>Bundle (بنڈل)</span>'
         : '<span class="badge bg-light text-dark border">Piece (نگ)</span>';
+      const packCountDisplay = (pQty > 0) ? `<strong>${pQty}</strong> <small class="text-muted">${isBundle ? 'بنڈل' : 'نگ'}</small>` : '<span class="text-muted">-</span>';
 
       return `
         <tr>
           <td><strong>${name}</strong></td>
           <td>${typeBadge}</td>
+          <td>${packCountDisplay}</td>
           <td>${qty.toLocaleString()} ${unit}</td>
           <td>Rs ${rate.toLocaleString()}</td>
           <td class="text-end fw-bold">Rs ${lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
@@ -720,9 +734,26 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       itemSel.focus();
     }
 
-    // Step 1: In Item Select, pressing Enter moves focus to Qty
+    // Step 1: In Item Select, pressing Enter moves focus to Qty / Bdl
     if (itemSel) {
       itemSel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const pQty = document.getElementById('itemPackingQty');
+          if (pQty) {
+            pQty.focus();
+            pQty.select();
+          } else if (itemQty) {
+            itemQty.focus();
+            itemQty.select();
+          }
+        }
+      });
+    }
+
+    const itemPackingQty = document.getElementById('itemPackingQty');
+    if (itemPackingQty) {
+      itemPackingQty.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           if (itemQty) {

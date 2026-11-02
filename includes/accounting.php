@@ -53,14 +53,22 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
                 ADD COLUMN `cutting_deduction` DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `freight_deduction`
             ");
         }
-        // Auto-heal packing_type column in sale_items and return_items
+        // Auto-heal packing_type and packing_qty column in sale_items and return_items
         $siCol = $db->query("SHOW COLUMNS FROM `sale_items` LIKE 'packing_type'")->fetch();
         if (!$siCol) {
             $db->exec("ALTER TABLE `sale_items` ADD COLUMN `packing_type` VARCHAR(20) NOT NULL DEFAULT 'Piece' AFTER `item_id`");
         }
+        $siQCol = $db->query("SHOW COLUMNS FROM `sale_items` LIKE 'packing_qty'")->fetch();
+        if (!$siQCol) {
+            $db->exec("ALTER TABLE `sale_items` ADD COLUMN `packing_qty` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `packing_type`");
+        }
         $riCol = $db->query("SHOW COLUMNS FROM `return_items` LIKE 'packing_type'")->fetch();
         if (!$riCol) {
             $db->exec("ALTER TABLE `return_items` ADD COLUMN `packing_type` VARCHAR(20) NOT NULL DEFAULT 'Piece' AFTER `item_id`");
+        }
+        $riQCol = $db->query("SHOW COLUMNS FROM `return_items` LIKE 'packing_qty'")->fetch();
+        if (!$riQCol) {
+            $db->exec("ALTER TABLE `return_items` ADD COLUMN `packing_qty` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `packing_type`");
         }
     } catch (Throwable $e) {
         error_log("Failed to auto-heal chart of accounts: " . $e->getMessage());

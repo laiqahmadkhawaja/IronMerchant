@@ -215,6 +215,7 @@ if ($action === 'create') {
             $validatedItems[] = [
                 'item_id' => $itemId,
                 'packing_type' => in_array($it['packing_type'] ?? '', ['Bundle', 'Piece'], true) ? $it['packing_type'] : 'Piece',
+                'packing_qty' => max(0.0, (float)($it['packing_qty'] ?? 0)),
                 'qty' => $qty,
                 'unit_rate' => $rate,
                 'line_discount' => $lineDiscount,
@@ -301,8 +302,8 @@ if ($action === 'create') {
         // 3. Insert sale items & deduct inventory + calculate COGS
         $itemInsertStmt = $db->prepare("
             INSERT INTO `sale_items`
-            (`sale_id`, `item_id`, `packing_type`, `qty`, `unit_rate`, `line_discount`, `line_total`, `unit_cogs`, `total_cogs`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (`sale_id`, `item_id`, `packing_type`, `packing_qty`, `qty`, `unit_rate`, `line_discount`, `line_total`, `unit_cogs`, `total_cogs`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         foreach ($validatedItems as $vItem) {
@@ -313,6 +314,7 @@ if ($action === 'create') {
                 $saleId,
                 $vItem['item_id'],
                 $vItem['packing_type'],
+                $vItem['packing_qty'],
                 $vItem['qty'],
                 $vItem['unit_rate'],
                 $vItem['line_discount'],
@@ -613,6 +615,7 @@ if ($action === 'update') {
             $validatedItems[] = [
                 'item_id' => $itemId,
                 'packing_type' => in_array($it['packing_type'] ?? '', ['Bundle', 'Piece'], true) ? $it['packing_type'] : 'Piece',
+                'packing_qty' => max(0.0, (float)($it['packing_qty'] ?? 0)),
                 'qty' => $qty,
                 'unit_rate' => $rate,
                 'line_discount' => $lineDiscount,
@@ -667,8 +670,8 @@ if ($action === 'update') {
         // 6. Insert new sale items & deduct inventory
         $itemInsertStmt = $db->prepare("
             INSERT INTO `sale_items`
-            (`sale_id`, `item_id`, `packing_type`, `qty`, `unit_rate`, `line_discount`, `line_total`, `unit_cogs`, `total_cogs`)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (`sale_id`, `item_id`, `packing_type`, `packing_qty`, `qty`, `unit_rate`, `line_discount`, `line_total`, `unit_cogs`, `total_cogs`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         foreach ($validatedItems as $vItem) {
@@ -679,6 +682,7 @@ if ($action === 'update') {
                 $saleId,
                 $vItem['item_id'],
                 $vItem['packing_type'],
+                $vItem['packing_qty'],
                 $vItem['qty'],
                 $vItem['unit_rate'],
                 $vItem['line_discount'],
