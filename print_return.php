@@ -367,22 +367,25 @@ $isThermal = ($size === '80' || $size === '58');
 
       <!-- Itemized Header -->
       <div class="th-row th-meta" style="font-weight: 700;">
-        <span style="width: 52%; text-align: left;">ITEM / QTY (kg)</span>
-        <span style="width: 22%; text-align: right;">RATE</span>
-        <span style="width: 26%; text-align: right;">TOTAL (RS)</span>
+        <span style="width: 42%; text-align: left;">ITEM</span>
+        <span style="width: 18%; text-align: right;">QTY</span>
+        <span style="width: 18%; text-align: right;">RATE</span>
+        <span style="width: 22%; text-align: right;">TOTAL</span>
       </div>
       <div class="th-line"></div>
 
-      <!-- Items List (Single line per item, no Sr #) -->
+      <!-- Items List (Single line per item, separate QTY column, RTL protected) -->
       <?php foreach ($items as $it): ?>
         <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
-          <span style="width: 52%; text-align: left; padding-right: 2px; line-height: 1.25;">
-            <strong><?= htmlspecialchars($it['item_name']) ?></strong>
-            <small style="font-size: 9px; opacity: 0.85;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? '[بنڈل]' : '[نگ]' ?></small>
-            <span style="white-space: nowrap;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+          <span style="width: 42%; text-align: left; padding-right: 2px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <bdi dir="auto"><strong><?= htmlspecialchars($it['item_name']) ?></strong></bdi>
+            <?php if (!empty($it['packing_type'])): ?>
+              <bdi dir="auto" style="font-size: 9px; opacity: 0.85; margin-left: 2px;"><?= ($it['packing_type'] === 'Bundle') ? '[بنڈل]' : '[نگ]' ?></bdi>
+            <?php endif; ?>
           </span>
-          <span style="width: 22%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
-          <span style="width: 26%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
+          <span style="width: 18%; text-align: right;" class="font-num"><bdi dir="ltr"><?= formatQty($it['qty'], $it['unit']) ?></bdi></span>
+          <span style="width: 18%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+          <span style="width: 22%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
         </div>
       <?php endforeach; ?>
 
