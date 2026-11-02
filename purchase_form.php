@@ -158,8 +158,12 @@ $activeShift = getActiveShift($db);
     
     <div class="row g-2 align-items-end mb-3">
       <div class="col-12 col-md-4">
-        <label class="form-label">Charge Name / Description</label>
-        <input type="text" id="chargeName" class="form-control" placeholder="e.g. Labour Unloading / Crane / Freight">
+        <label class="form-label">Charge Name / Description (خرچہ کی قسم)</label>
+        <select id="chargeName" class="form-select">
+          <option value="لوڈنگ">لوڈنگ (Loading / Unloading)</option>
+          <option value="کٹنگ">کٹنگ (Cutting)</option>
+          <option value="کرایہ">کرایہ (Freight / Carriage)</option>
+        </select>
       </div>
       <div class="col-6 col-md-3">
         <label class="form-label">Charge Amount (Rs)</label>
@@ -325,22 +329,12 @@ $activeShift = getActiveShift($db);
 
     qtyInput.value = '';
     rateInput.value = '';
-    const purPayInitEl = document.getElementById('purPayMethod');
-  const purAccInitEl = document.getElementById('purAccount');
-  if (purPayInitEl && purAccInitEl) {
-    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
-  }
-  recalculateLandedDistribution();
+    recalculateLandedDistribution();
   }
 
   function removePurchaseLine(idx) {
     purchaseItems.splice(idx, 1);
-    const purPayInitEl = document.getElementById('purPayMethod');
-  const purAccInitEl = document.getElementById('purAccount');
-  if (purPayInitEl && purAccInitEl) {
-    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
-  }
-  recalculateLandedDistribution();
+    recalculateLandedDistribution();
   }
 
   function addPurchaseCharge() {
@@ -364,24 +358,13 @@ $activeShift = getActiveShift($db);
       allocation_method: method
     });
 
-    nameInput.value = '';
     amtInput.value = '';
-    const purPayInitEl = document.getElementById('purPayMethod');
-  const purAccInitEl = document.getElementById('purAccount');
-  if (purPayInitEl && purAccInitEl) {
-    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
-  }
-  recalculateLandedDistribution();
+    recalculateLandedDistribution();
   }
 
   function removePurchaseCharge(idx) {
     purchaseCharges.splice(idx, 1);
-    const purPayInitEl = document.getElementById('purPayMethod');
-  const purAccInitEl = document.getElementById('purAccount');
-  if (purPayInitEl && purAccInitEl) {
-    filterAccountsByPaymentMethod(purPayInitEl, purAccInitEl);
-  }
-  recalculateLandedDistribution();
+    recalculateLandedDistribution();
   }
 
   function recalculateLandedDistribution() {
