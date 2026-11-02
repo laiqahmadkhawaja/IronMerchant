@@ -336,7 +336,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         <?php else: ?>
           <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل اپڈیٹ کریں)
         <?php endif; ?>
-        <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں)
+        <!-- <i class="fa-solid fa-floppy-disk me-2"></i> Save &amp; Generate Bill (بل محفوظ کریں) -->
         <div class="small fw-normal opacity-75 mt-1" style="font-size: 12px;">
           <!-- <i class="fa-solid fa-keyboard me-1"></i> Press <strong>F8</strong> or <strong>Ctrl + Enter</strong> to Save -->
         </div>
