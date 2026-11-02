@@ -407,6 +407,16 @@ select.form-select option {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  transition: margin-left .25s ease;
+}
+
+/* Sidebar Collapsible Mode */
+body.sidebar-collapsed .app-sidebar {
+  transform: translateX(-100%) !important;
+}
+body.sidebar-collapsed .app-main {
+  margin-left: 0 !important;
+  width: 100% !important;
 }
 
 /* Header Banner (Executive Modern Design) */

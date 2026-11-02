@@ -52,6 +52,15 @@ function ensureChartOfAccountsIntegrity(PDO $db): void {
                 ADD COLUMN `cutting_deduction` DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER `freight_deduction`
             ");
         }
+        // Auto-heal packing_type column in sale_items and return_items
+        $siCol = $db->query("SHOW COLUMNS FROM `sale_items` LIKE 'packing_type'")->fetch();
+        if (!$siCol) {
+            $db->exec("ALTER TABLE `sale_items` ADD COLUMN `packing_type` VARCHAR(20) NOT NULL DEFAULT 'Piece' AFTER `item_id`");
+        }
+        $riCol = $db->query("SHOW COLUMNS FROM `return_items` LIKE 'packing_type'")->fetch();
+        if (!$riCol) {
+            $db->exec("ALTER TABLE `return_items` ADD COLUMN `packing_type` VARCHAR(20) NOT NULL DEFAULT 'Piece' AFTER `item_id`");
+        }
     } catch (Throwable $e) {
         error_log("Failed to auto-heal chart of accounts: " . $e->getMessage());
     }

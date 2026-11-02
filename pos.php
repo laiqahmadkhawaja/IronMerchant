@@ -96,7 +96,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
 <div class="row g-3">
   <!-- Left Column: Item Selection & Cart Table -->
-  <div class="col-12 col-xl-7">
+  <div class="col-12 col-lg-6 col-xl-6">
     <div class="zb-card mb-3">
       <div class="zb-card-title d-flex justify-content-between align-items-center">
         <span><i class="fa-solid fa-cart-plus me-1 text-primary"></i> 1. Select Steel Product (آئٹم سلیکشن)</span>
@@ -104,7 +104,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       </div>
 
       <div class="row g-2 align-items-end mb-3">
-        <div class="col-12 col-md-5">
+        <div class="col-12 col-sm-6 col-md-4">
           <label class="form-label">Product Name / Saria / Girder</label>
           <select id="itemSelect" class="form-select" onchange="onItemSelectChange()">
             <?php foreach ($items as $it): 
@@ -117,19 +117,27 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           </select>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-sm-6 col-md-2">
+          <label class="form-label">Packing / Type (نوعیت)</label>
+          <select id="itemPacking" class="form-select">
+            <option value="Bundle">Bundle (بنڈل)</option>
+            <option value="Piece" selected>Piece / Pc (نگ / پیس)</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-sm-4 col-md-2">
           <label class="form-label">Weight / Qty (kg)</label>
           <input type="number" id="itemQty" class="form-control" placeholder="e.g. 500" step="any">
         </div>
 
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-sm-4 col-md-2">
           <label class="form-label">Rate (Rs/kg)</label>
           <input type="number" id="itemRate" class="form-control" placeholder="Rate" step="any">
         </div>
 
-        <div class="col-12 col-md-2">
+        <div class="col-6 col-sm-4 col-md-2">
           <button type="button" class="btn btn-zb-gold w-100 fw-bold" id="addItemBtn" onclick="addItemToCart()">
-            <i class="fa-solid fa-plus me-1"></i> Add <span class="badge bg-dark bg-opacity-25 ms-1" style="font-size: 10px;">↵ Enter</span>
+            <i class="fa-solid fa-plus me-1"></i> Add <span class="badge bg-dark bg-opacity-25 ms-1" style="font-size: 10px;">↵</span>
           </button>
         </div>
       </div>
@@ -140,6 +148,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           <thead class="table-light">
             <tr>
               <th>Product</th>
+              <th style="width: 110px;">Type (نوعیت)</th>
               <th>Qty (kg)</th>
               <th>Rate (Rs)</th>
               <th class="text-end">Total Amount</th>
@@ -148,7 +157,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           </thead>
           <tbody id="cartTableBody">
             <tr id="emptyCartRow">
-              <td colspan="5" class="text-center py-4 text-muted">
+              <td colspan="6" class="text-center py-4 text-muted">
                 <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
                 No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
               </td>
@@ -160,7 +169,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
   </div>
 
   <!-- Right Column: Customer Details, Additional Charges & Checkout -->
-  <div class="col-12 col-xl-5">
+  <div class="col-12 col-lg-6 col-xl-6">
     <div class="zb-card">
       <div class="zb-card-title d-flex justify-content-between align-items-center">
         <span><i class="fa-solid fa-file-invoice-dollar me-1 text-success"></i> 2. Customer &amp; Payment (کھاتہ و بل)</span>
@@ -169,7 +178,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
       <!-- Customer Selection -->
       <div class="row g-2 mb-2">
-        <div class="col-8">
+        <div class="col-12 col-sm-7">
           <label class="form-label d-flex justify-content-between">
             <span>Customer (کسٹمر نام)</span>
             <span class="badge bg-light text-secondary border" style="font-size: 10px;">[F2]</span>
@@ -191,7 +200,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-4">
+        <div class="col-12 col-sm-5">
           <label class="form-label">Previous Balance</label>
           <input type="text" id="custBalDisplay" class="form-control fw-bold bg-light" readonly value="Rs 0.00">
         </div>
@@ -199,11 +208,11 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
       <!-- Optional Customer Name & Phone for Invoice Printing -->
       <div class="row g-2 mb-2">
-        <div class="col-7">
+        <div class="col-12 col-sm-7">
           <label class="form-label" style="font-size: 12.5px;">Customer Name on Bill (اختیاری نام) </label>
           <input type="text" id="custNameCustom" class="form-control" value="<?= htmlspecialchars($editSale['customer_name_custom'] ?? '') ?>" placeholder="Optional name (e.g. Haji Aslam / Site Manager)">
         </div>
-        <div class="col-5">
+        <div class="col-12 col-sm-5">
           <label class="form-label" style="font-size: 12.5px;">Phone / WhatsApp (اختیاری فون) </label>
           <input type="text" id="custPhoneCustom" class="form-control" value="<?= htmlspecialchars($editSale['customer_phone_custom'] ?? '') ?>" placeholder="Optional 0300-1234567">
         </div>
@@ -222,7 +231,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       <div class="p-3 bg-light rounded-3 border mb-3">
         <div class="row g-2 mb-2">
           <!-- 1. لوڈنگ (Loading) [F3] -->
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-sm-4">
             <label class="form-label d-flex justify-content-between align-items-center">
               <span class="ur fw-bold" style="font-size: 13.5px;">لوڈنگ</span>
               <span class="badge bg-white text-secondary border font-num" style="font-size: 9.5px;">[F3]</span>
@@ -233,7 +242,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </div>
           </div>
           <!-- 2. کٹنگ (Cutting) [F6] -->
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-sm-4">
             <label class="form-label d-flex justify-content-between align-items-center">
               <span class="ur fw-bold" style="font-size: 13.5px;">کٹنگ</span>
               <span class="badge bg-white text-secondary border font-num" style="font-size: 9.5px;">[F6]</span>
@@ -244,7 +253,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             </div>
           </div>
           <!-- 3. کرایہ (Delivery) [F4] -->
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-sm-4">
             <label class="form-label d-flex justify-content-between align-items-center">
               <span class="ur fw-bold" style="font-size: 13.5px;">کرایہ</span>
               <span class="badge bg-white text-secondary border font-num" style="font-size: 9.5px;">[F4]</span>
@@ -257,14 +266,14 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         </div>
 
         <div class="row g-2 mb-2">
-          <div class="col-6">
+          <div class="col-12 col-sm-6">
             <label class="form-label">Special Discount (رعایت)</label>
             <div class="input-group">
               <span class="input-group-text">Rs</span>
               <input type="number" id="discountAmount" class="form-control" value="<?= (!empty($editSale['discount']) && (float)$editSale['discount'] > 0) ? (float)$editSale['discount'] : '' ?>" placeholder="0" step="any" oninput="calculateBillTotals()" onfocus="this.select()">
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-12 col-sm-6">
             <label class="form-label">Payment Method</label>
             <select id="paymentMethod" class="form-select">
               <option value="Cash" <?= ($editSale && $editSale['payment_method'] === 'Cash') ? 'selected' : '' ?>>Cash (نقد)</option>
@@ -277,7 +286,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         </div>
 
         <div class="row g-2">
-          <div class="col-6">
+          <div class="col-12 col-sm-6">
             <label class="form-label">Deposit In Account</label>
             <select id="depositAccount" class="form-select">
               <?php if (empty($accounts)): ?>
@@ -289,7 +298,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
               <?php endif; ?>
             </select>
           </div>
-          <div class="col-6">
+          <div class="col-12 col-sm-6">
             <label class="form-label d-flex justify-content-between">
               <span>Amount Paid Now (وصولی)</span>
               <span class="badge bg-white text-secondary border" style="font-size: 9.5px;">[F7]</span>
@@ -342,6 +351,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
           'item_id' => (int)$it['item_id'],
           'name' => (string)$it['name'],
           'unit' => (string)($it['unit'] ?? 'kg'),
+          'packing_type' => (string)($it['packing_type'] ?? 'Piece'),
           'qty' => $qty,
           'rate' => $rate,
           'unit_rate' => $rate,
@@ -435,10 +445,14 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       }
     }
 
+    const packingInput = document.getElementById('itemPacking');
+    const packingType = (packingInput && packingInput.value === 'Bundle') ? 'Bundle' : 'Piece';
+
     cart.push({
       item_id: itemId,
       name: itemName,
       unit: unit,
+      packing_type: packingType,
       qty: qty,
       rate: rate,
       unit_rate: rate,
@@ -464,7 +478,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     if (!cart || !cart.length) {
       tbody.innerHTML = `
         <tr id="emptyCartRow">
-          <td colspan="5" class="text-center py-4 text-muted">
+          <td colspan="6" class="text-center py-4 text-muted">
             <i class="fa-solid fa-cart-shopping fs-2 mb-2 d-block text-secondary opacity-50"></i>
             No items added yet. Select a product above and press <kbd>Enter</kbd> to add.
           </td>
@@ -479,10 +493,15 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       const unit = it.unit || 'kg';
       const rate = parseFloat(it.unit_rate ?? it.rate) || 0;
       const lineTotal = parseFloat(it.line_total) || (qty * rate);
+      const isBundle = (it.packing_type === 'Bundle');
+      const typeBadge = isBundle 
+        ? '<span class="badge bg-warning text-dark border"><i class="fa-solid fa-boxes-stacked me-1"></i>Bundle (بنڈل)</span>'
+        : '<span class="badge bg-light text-dark border">Piece (نگ)</span>';
 
       return `
         <tr>
           <td><strong>${name}</strong></td>
+          <td>${typeBadge}</td>
           <td>${qty.toLocaleString()} ${unit}</td>
           <td>Rs ${rate.toLocaleString()}</td>
           <td class="text-end fw-bold">Rs ${lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

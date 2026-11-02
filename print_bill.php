@@ -454,7 +454,7 @@ foreach ($items as $it) {
       <!-- Items List -->
       <?php foreach ($items as $idx => $it): ?>
         <div style="margin-bottom: 5px;">
-          <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?></div>
+          <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?> <span style="font-size:10px; font-weight:normal; border:1px solid #777; padding:1px 3px; border-radius:3px;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span></div>
           <div class="th-row th-item-sub">
             <span><?= formatQty($it['qty'], $it['unit']) ?> @ <?= number_format((float)$it['unit_rate'], 2) ?></span>
             <span class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
@@ -695,6 +695,9 @@ foreach ($items as $it) {
               <td style="text-align: center;"><?= ($idx + 1) ?></td>
               <td>
                 <strong><?= htmlspecialchars($it['item_name']) ?></strong>
+                <?php if (!empty($it['packing_type'])): ?>
+                  <span style="font-size: 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; margin-left: 4px; font-weight: normal;"><?= $it['packing_type'] === 'Bundle' ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span>
+                <?php endif; ?>
               </td>
               <td style="text-align: center; text-transform: uppercase;">
                 <?= htmlspecialchars($it['unit']) ?>

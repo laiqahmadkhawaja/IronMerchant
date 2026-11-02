@@ -32,6 +32,20 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
   <link rel="stylesheet" href="assets/css/style.css?v=<?= time() ?>">
 </head>
 <body>
+<script>
+  if (localStorage.getItem('sidebar_collapsed') === '1') {
+    document.body.classList.add('sidebar-collapsed');
+  }
+  function toggleSidebarCollapse() {
+    if (window.innerWidth < 992) {
+      var sb = document.querySelector('.app-sidebar');
+      if (sb) sb.classList.toggle('show');
+    } else {
+      document.body.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('sidebar_collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+    }
+  }
+</script>
 
 <div class="app-wrapper">
   <!-- Modular Sidebar Navigation -->
@@ -43,7 +57,7 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
     <header class="header-banner">
       <!-- Left: Logo & Brand Information -->
       <div class="header-brand-left">
-        <button class="btn btn-sm btn-outline-light d-lg-none" onclick="document.querySelector('.app-sidebar').classList.toggle('show')" title="Toggle Menu">
+        <button type="button" class="btn btn-sm btn-outline-light me-2" onclick="toggleSidebarCollapse()" title="Toggle Sidebar">
           <i class="fa-solid fa-bars"></i>
         </button>
 
