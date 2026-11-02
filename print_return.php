@@ -358,10 +358,10 @@ $isThermal = ($size === '80' || $size === '58');
       <div class="th-line"></div>
 
       <!-- Itemized Header -->
-      <div class="th-row th-meta">
-        <span>RETURNED ITEM / QTY</span>
-        <span>RATE</span>
-        <span>TOTAL (RS)</span>
+      <div class="th-row th-meta" style="font-weight: 700;">
+        <span style="width: 40%; text-align: left;">ITEM / QTY (kg)</span>
+        <span style="width: 25%; text-align: right;">RATE</span>
+        <span style="width: 35%; text-align: right;">TOTAL (RS)</span>
       </div>
       <div class="th-line"></div>
 
@@ -370,8 +370,9 @@ $isThermal = ($size === '80' || $size === '58');
         <div style="margin-bottom: 5px;">
           <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?> <span style="font-size:10px; font-weight:normal; border:1px solid #777; padding:1px 3px; border-radius:3px;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span></div>
           <div class="th-row th-item-sub">
-            <span><?= formatQty($it['qty'], $it['unit']) ?> @ <?= number_format((float)$it['unit_rate'], 2) ?></span>
-            <span class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
+            <span style="width: 40%; text-align: left;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+            <span style="width: 25%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+            <span style="width: 35%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
           </div>
         </div>
       <?php endforeach; ?>

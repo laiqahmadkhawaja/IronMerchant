@@ -444,10 +444,10 @@ foreach ($items as $it) {
       <div class="th-line"></div>
 
       <!-- Itemized Table Header -->
-      <div class="th-row th-meta">
-        <span>ITEM / QTY</span>
-        <span>RATE</span>
-        <span>TOTAL (RS)</span>
+      <div class="th-row th-meta" style="font-weight: 700;">
+        <span style="width: 40%; text-align: left;">ITEM / QTY (kg)</span>
+        <span style="width: 25%; text-align: right;">RATE</span>
+        <span style="width: 35%; text-align: right;">TOTAL (RS)</span>
       </div>
       <div class="th-line"></div>
 
@@ -456,8 +456,9 @@ foreach ($items as $it) {
         <div style="margin-bottom: 5px;">
           <div class="th-item-title"><?= ($idx + 1) ?>. <?= htmlspecialchars($it['item_name']) ?> <span style="font-size:10px; font-weight:normal; border:1px solid #777; padding:1px 3px; border-radius:3px;"><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'Bundle (بنڈل)' : 'Pc (نگ)' ?></span></div>
           <div class="th-row th-item-sub">
-            <span><?= formatQty($it['qty'], $it['unit']) ?> @ <?= number_format((float)$it['unit_rate'], 2) ?></span>
-            <span class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
+            <span style="width: 40%; text-align: left;"><?= formatQty($it['qty'], $it['unit']) ?></span>
+            <span style="width: 25%; text-align: right;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+            <span style="width: 35%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
           </div>
         </div>
       <?php endforeach; ?>
@@ -509,26 +510,31 @@ foreach ($items as $it) {
         <span class="font-num">Rs <?= number_format((float)$sale['grand_total'], 2) ?></span>
       </div>
 
-      <div class="th-row th-due">
-        <span>Paid Amount / Advance:</span>
-        <span class="font-num"><?= number_format((float)$sale['paid_amount'], 2) ?></span>
-      </div>
-      <div class="th-row th-due" style="<?= (float)$sale['due_amount'] > 0 ? 'color: #991b1b; font-weight: bold;' : '' ?>">
-        <span><?= ((float)$sale['due_amount'] > 0) ? 'Due on Delivery (بقیہ مال اتروائی پر):' : 'This Bill Due:' ?></span>
-        <span class="font-num"><?= number_format((float)$sale['due_amount'], 2) ?></span>
-      </div>
+      <?php 
+      $hasDue = ((float)$sale['due_amount'] > 0.009);
+      $hasKhata = (!$isWalkIn && (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01));
+      if ($hasDue || $hasKhata): 
+      ?>
+        <div class="th-row th-due">
+          <span>Paid Amount / Advance:</span>
+          <span class="font-num"><?= number_format((float)$sale['paid_amount'], 2) ?></span>
+        </div>
+        <div class="th-row th-due" style="<?= $hasDue ? 'color: #991b1b; font-weight: bold;' : '' ?>">
+          <span><?= $hasDue ? 'Due on Delivery (بقیہ مال اتروائی پر):' : 'This Bill Due:' ?></span>
+          <span class="font-num"><?= number_format((float)$sale['due_amount'], 2) ?></span>
+        </div>
 
-      <!-- Khata Balance Section (Hidden for Walk-in Customers) -->
-      <?php if (!$isWalkIn): ?>
-      <div class="th-line"></div>
-      <div class="th-row th-meta">
-        <span>Previous Balance:</span>
-        <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
-      </div>
-      <div class="th-row th-khata">
-        <span>TOTAL KHATA DUE:</span>
-        <span class="font-num"><?= formatCurrency($currBalance) ?></span>
-      </div>
+        <?php if ($hasKhata): ?>
+          <div class="th-line"></div>
+          <div class="th-row th-meta">
+            <span>Previous Balance:</span>
+            <span class="font-num"><?= formatCurrency($prevBalance) ?></span>
+          </div>
+          <div class="th-row th-khata">
+            <span>TOTAL KHATA DUE:</span>
+            <span class="font-num"><?= formatCurrency($currBalance) ?></span>
+          </div>
+        <?php endif; ?>
       <?php endif; ?>
 
       <div class="th-line"></div>
@@ -757,8 +763,8 @@ foreach ($items as $it) {
             <?php endif; ?>
           </div>
 
-          <?php if (!$isWalkIn): ?>
-          <!-- Customer Khata Ledger Impact Box (Isolated Elements - Hidden for Walk-in Customers) -->
+          <?php if (!$isWalkIn && (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01 || (float)$sale['due_amount'] > 0.009)): ?>
+          <!-- Customer Khata Ledger Impact Box (Isolated Elements - Hidden for Walk-in Customers or 0 Balance) -->
           <div class="mt-2 p-2 border rounded" style="background: #f8fafc; font-size: 11.5px;">
             <div class="d-flex justify-content-between align-items-center py-1">
               <div class="d-flex align-items-center gap-1">
@@ -858,21 +864,25 @@ foreach ($items as $it) {
               <span class="font-num fw-bold text-success"><?= formatMoney($sale['paid_amount']) ?></span>
             </div>
 
-            <?php if (!$isWalkIn): ?>
-            <div class="d-flex justify-content-between align-items-center py-1 fw-bold <?= (float)$sale['due_amount'] > 0 ? 'text-danger' : 'text-success' ?>" <?= (float)$sale['due_amount'] > 0 ? 'style="background: #fef2f2; padding: 4px 6px; border-radius: 4px;"' : '' ?>>
+            <?php 
+            $hasDue = ((float)$sale['due_amount'] > 0.009);
+            $hasKhata = (!$isWalkIn && (abs((float)$prevBalance) > 0.01 || abs((float)$currBalance) > 0.01));
+            ?>
+            <?php if ($hasDue): ?>
+            <div class="d-flex justify-content-between align-items-center py-1 fw-bold text-danger" style="background: #fef2f2; padding: 4px 6px; border-radius: 4px;">
               <div class="d-flex align-items-center gap-1">
-                <span><?= ((float)$sale['due_amount'] > 0) ? 'Due on Site Delivery / Unloading' : 'Balance Due' ?></span>
-                <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;"><?= ((float)$sale['due_amount'] > 0) ? '(مال اتروائی پر بقیہ وصولی)' : 'اس بل کا بقایا' ?></span>
+                <span>Due on Site Delivery / Unloading</span>
+                <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;">(مال اتروائی پر بقیہ وصولی)</span>
               </div>
               <span class="font-num fs-6"><?= formatMoney($sale['due_amount']) ?></span>
             </div>
-            <?php else: ?>
+            <?php elseif (!$hasKhata): ?>
             <div class="d-flex justify-content-between align-items-center py-1 fw-bold text-success" style="background: #f0fdf4; padding: 4px 6px; border-radius: 4px;">
               <div class="d-flex align-items-center gap-1">
                 <span>Bill Payment Status</span>
                 <span class="ur" dir="rtl" style="font-size: 11.5px; line-height: 1.4;">ادائیگی کی حیثیت</span>
               </div>
-              <span class="font-num fs-6 text-success">PAID (مکمل نقد وصول)</span>
+              <span class="font-num fs-6 text-success">PAID (مکمل وصول)</span>
             </div>
             <?php endif; ?>
           </div>
