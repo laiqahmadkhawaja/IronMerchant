@@ -165,9 +165,9 @@ $activeShift = getActiveShift($db);
       <div class="col-12 col-md-4">
         <label class="form-label">Charge Name / Description (خرچہ کی قسم)</label>
         <select id="chargeName" class="form-select">
-          <option value="لوڈنگ">لوڈنگ (Loading / Unloading)</option>
-          <option value="کٹنگ">کٹنگ (Cutting)</option>
-          <option value="کرایہ">کرایہ (Freight / Carriage)</option>
+          <option value="لوڈنگ">لوڈنگ</option>
+          <option value="کٹنگ">کٹنگ</option>
+          <option value="کرایہ">کرایہ</option>
         </select>
       </div>
       <div class="col-6 col-md-3">
