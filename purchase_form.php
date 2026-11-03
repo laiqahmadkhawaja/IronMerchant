@@ -43,7 +43,12 @@ require_once __DIR__ . '/includes/header.php';
 
 $db = getDB();
 $suppliers = $db->query("SELECT id, name, current_balance FROM parties WHERE type = 'supplier' AND is_active = 1 ORDER BY name ASC")->fetchAll();
-$items = $db->query("SELECT id, name, unit, cost_price FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+$items = $db->query("SELECT id, item_code, name, unit, cost_price FROM items WHERE is_active = 1 ORDER BY 
+    CASE WHEN item_code IS NULL OR item_code = '' THEN 1 ELSE 0 END, 
+    CASE WHEN item_code REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, 
+    CAST(item_code AS UNSIGNED) ASC, 
+    item_code ASC, 
+    name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type, bank_name, account_number FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 $activeShift = getActiveShift($db);
 ?>
@@ -109,8 +114,8 @@ $activeShift = getActiveShift($db);
         <label class="form-label">Select Steel Product</label>
         <select id="purItemSelect" class="form-select">
           <?php foreach ($items as $it): ?>
-            <option value="<?= $it['id'] ?>" data-unit="<?= $it['unit'] ?>" data-cost="<?= $it['cost_price'] ?>">
-              <?= htmlspecialchars($it['name']) ?> (Current Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>/kg)
+            <option value="<?= $it['id'] ?>" data-unit="<?= $it['unit'] ?>" data-cost="<?= $it['cost_price'] ?>" data-name="<?= htmlspecialchars($it['name']) ?>">
+              <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Current Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>/kg)
             </option>
           <?php endforeach; ?>
         </select>
@@ -308,7 +313,7 @@ $activeShift = getActiveShift($db);
     const rateInput = document.getElementById('purItemRate');
 
     const itemId = parseInt(sel.value);
-    const itemName = opt.text.split(' (Current Cost:')[0].trim();
+    const itemName = opt.getAttribute('data-name') || opt.text.split(' (Current Cost:')[0].trim();
     const unit = opt.getAttribute('data-unit') || 'kg';
     const qty = parseFloat(qtyInput.value) || 0;
     const rate = parseFloat(rateInput.value) || 0;

@@ -35,7 +35,12 @@ if ($editSaleId > 0) {
         $editCharges = $stChg->fetchAll();
     }
 }
-$items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+$items = $db->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY 
+    CASE WHEN item_code IS NULL OR item_code = '' THEN 1 ELSE 0 END, 
+    CASE WHEN item_code REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, 
+    CAST(item_code AS UNSIGNED) ASC, 
+    item_code ASC, 
+    name ASC")->fetchAll();
 $customers = $db->query("SELECT id, name, phone, current_balance, is_walkin FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY (CASE WHEN is_walkin = 1 OR id = 1 OR name LIKE '%walk%' THEN 0 ELSE 1 END), name ASC")->fetchAll();
 $accounts = $db->query("SELECT id, account_name, account_type, bank_name, account_number FROM financial_accounts WHERE is_active = 1 ORDER BY id ASC")->fetchAll();
 $companySettings = getCompanySettings();
@@ -123,8 +128,8 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <?php foreach ($items as $it): 
               $isOut = (float)$it['stock_qty'] <= 0;
             ?>
-              <option value="<?= $it['id'] ?>" data-price="<?= $it['sale_price'] ?>" data-stock="<?= $it['stock_qty'] ?>" data-unit="<?= $it['unit'] ?>">
-                <?= htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
+              <option value="<?= $it['id'] ?>" data-price="<?= $it['sale_price'] ?>" data-stock="<?= $it['stock_qty'] ?>" data-unit="<?= $it['unit'] ?>" data-name="<?= htmlspecialchars($it['name']) ?>" data-code="<?= htmlspecialchars($it['item_code'] ?? '') ?>">
+                <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
               </option>
             <?php endforeach; ?>
           </select>
@@ -377,7 +382,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     if (!sel || sel.selectedIndex < 0) return;
     const opt = sel.options[sel.selectedIndex];
     if (opt) {
-      document.getElementById('itemRate').value = opt.getAttribute('data-price') || '';
+      // document.getElementById('itemRate').value = opt.getAttribute('data-price') || '';
     }
   }
 
@@ -433,7 +438,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
     }
 
     const itemId = parseInt(sel.value);
-    const itemName = opt.text.split(' (Stock:')[0].trim();
+    const itemName = opt.getAttribute('data-name') || opt.text.split(' (Stock:')[0].trim();
     const unit = opt.getAttribute('data-unit') || 'kg';
     const qty = parseFloat(qtyInput.value) || 0;
     const rate = parseFloat(rateInput.value) || 0;

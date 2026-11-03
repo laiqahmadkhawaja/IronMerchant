@@ -390,7 +390,12 @@ foreach ($returnsList as $r) {
 // Fetch active customers, suppliers, items, financial accounts for the entry forms
 $customers = $pdo->query("SELECT id, name, phone, current_balance FROM parties WHERE type = 'customer' AND is_active = 1 ORDER BY name")->fetchAll();
 $suppliers = $pdo->query("SELECT id, name, phone, current_balance FROM parties WHERE type = 'supplier' AND is_active = 1 ORDER BY name")->fetchAll();
-$itemsList = $pdo->query("SELECT id, name, item_code, unit, stock_qty, cost_price, sale_price FROM items WHERE is_active = 1 ORDER BY name")->fetchAll();
+$itemsList = $pdo->query("SELECT id, name, item_code, unit, stock_qty, cost_price, sale_price FROM items WHERE is_active = 1 ORDER BY 
+    CASE WHEN item_code IS NULL OR item_code = '' THEN 1 ELSE 0 END, 
+    CASE WHEN item_code REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, 
+    CAST(item_code AS UNSIGNED) ASC, 
+    item_code ASC, 
+    name ASC")->fetchAll();
 $finAccounts = $pdo->query("SELECT id, account_name, account_type, bank_name, current_balance FROM financial_accounts WHERE is_active = 1 ORDER BY account_type, account_name")->fetchAll();
 
 require_once __DIR__ . '/includes/header.php';
@@ -665,7 +670,7 @@ $activeShift = getActiveShift($pdo);
                           data-cost="<?= $it['cost_price'] ?>" 
                           data-sale="<?= $it['sale_price'] ?>"
                           data-unit="<?= $it['unit'] ?>">
-                    <?= htmlspecialchars($it['name']) ?> [Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?> | W-Avg Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>]
+                    <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> [Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?> | W-Avg Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>]
                   </option>
                 <?php endforeach; ?>
               </select>

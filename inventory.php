@@ -188,7 +188,12 @@ if ($stockStatus === 'low') {
     $sql .= " AND i.stock_qty <= 0";
 }
 
-$sql .= " ORDER BY i.name ASC";
+$sql .= " ORDER BY 
+    CASE WHEN i.item_code IS NULL OR i.item_code = '' THEN 1 ELSE 0 END, 
+    CASE WHEN i.item_code REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, 
+    CAST(i.item_code AS UNSIGNED) ASC, 
+    i.item_code ASC, 
+    i.name ASC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $items = $stmt->fetchAll();

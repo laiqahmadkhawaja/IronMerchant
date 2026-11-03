@@ -336,11 +336,11 @@ $isThermal = ($size === '80' || $size === '58');
         </div>
         <?php if (!empty($compLandline)): ?>
           <div class="th-sub" style="margin-top: 2px;">
-            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+            <?= htmlspecialchars($compLandline) ?>
           </div>
         <?php endif; ?>
         <div class="th-sub" style="margin-top: 2px;">
-          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
+          <?= htmlspecialchars($compPhone) ?>
         </div>
       </div>
 

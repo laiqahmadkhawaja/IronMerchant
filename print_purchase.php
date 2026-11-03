@@ -335,14 +335,14 @@ foreach ($items as $it) {
           <?= strtoupper(htmlspecialchars($compName)) ?>
         </div>
         <div class="th-sub" style="margin-top: 2px;">Gujranwala Steel Group of Industry</div>
-        <div class="th-sub">Deals in: Grade 40/60 Steel &amp; G.I Wire</div>
+        <div class="th-sub ur">گول سریا، چورس سریا، ڈیفارم سریا، اینگل آئرن، پٹی آئرن، زیڈ سیکشن</div>
         <?php if (!empty($compLandline)): ?>
           <div class="th-sub" style="margin-top: 2px;">
-            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+            <?= htmlspecialchars($compLandline) ?>
           </div>
         <?php endif; ?>
         <div class="th-sub" style="margin-top: 2px;">
-          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
+            <?= htmlspecialchars($compPhone) ?>
         </div>
         <div class="th-sub"><?= htmlspecialchars($compAddress) ?></div>
         <div class="th-double" style="margin-top: 5px;">

@@ -429,14 +429,14 @@ foreach ($items as $it) {
           <?= strtoupper(htmlspecialchars($compName)) ?>
         </div>
         <div class="th-sub" style="margin-top: 2px;">Gujranwala Steel Group of Industry</div>
-        <div class="th-sub">Deals in: Grade 40/60 Steel &amp; G.I Wire</div>
+        <div class="th-sub ur fw-bold">گول سریا، چورس سریا، ڈیفارم سریا، اینگل آئرن، پٹی آئرن، زیڈ سیکشن</div>
         <?php if (!empty($compLandline)): ?>
           <div class="th-sub" style="margin-top: 2px;">
-            <i class="fa-solid fa-phone"></i> <?= htmlspecialchars($compLandline) ?>
+            <?= htmlspecialchars($compLandline) ?>
           </div>
         <?php endif; ?>
         <div class="th-sub" style="margin-top: 2px;">
-          <i class="fa-solid fa-mobile-screen"></i> <?= htmlspecialchars($compPhone) ?>
+          <?= htmlspecialchars($compPhone) ?>
         </div>
         <div class="th-sub"><?= htmlspecialchars($compAddress) ?></div>
       </div>
@@ -602,7 +602,7 @@ foreach ($items as $it) {
                 <?= htmlspecialchars($company['company_tagline'] ?? 'Gujranwala Steel Group of Industry') ?>
               </div>
               <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #64748b; font-weight: 600; margin-top: 2px;">
-                Prime Re-Rolled Steel Bars, G.I Wire &amp; Structural Steel
+                گول سریا، چورس سریا، ڈیفارم سریا، اینگل آئرن، پٹی آئرن، زیڈ سیکشن
               </div>
               <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #475569; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
                 <i class="fa-solid fa-location-dot text-primary" style="flex-shrink: 0;"></i>

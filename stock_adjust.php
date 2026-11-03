@@ -139,7 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch all active items for dropdown
-$items = $pdo->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+$items = $pdo->query("SELECT id, item_code, name, unit, cost_price, sale_price, stock_qty FROM items WHERE is_active = 1 ORDER BY 
+    CASE WHEN item_code IS NULL OR item_code = '' THEN 1 ELSE 0 END, 
+    CASE WHEN item_code REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, 
+    CAST(item_code AS UNSIGNED) ASC, 
+    item_code ASC, 
+    name ASC")->fetchAll();
 
 // Fetch recent adjustments
 $recentAdjustments = $pdo->query("
@@ -200,7 +205,7 @@ require_once __DIR__ . '/includes/header.php';
                     data-cost="<?= (float)$it['cost_price'] ?>"
                     data-unit="<?= htmlspecialchars($it['unit']) ?>"
                     <?= ($preselectedItemId === (int)$it['id']) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($it['name']) ?> (Code: <?= htmlspecialchars($it['item_code']) ?>) - Current: <?= number_format((float)$it['stock_qty'], 1) ?> <?= htmlspecialchars($it['unit']) ?>
+                    <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> - Current: <?= number_format((float)$it['stock_qty'], 1) ?> <?= htmlspecialchars($it['unit']) ?>
                   </option>
                 <?php endforeach; ?>
               </select>
