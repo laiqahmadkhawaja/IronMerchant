@@ -116,7 +116,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
         <div class="col-6 col-sm-6 col-md-2">
           <label class="form-label">Type (نوعیت)</label>
-          <select id="itemPacking" class="form-select" onfocus="this.click()">
+          <select id="itemPacking" class="form-select">
             <option value="Bundle" selected>Bundle (بنڈل)</option>
             <option value="Piece">Pc (نگ)</option>
           </select>
@@ -749,12 +749,38 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       itemSel.focus();
     }
 
-    // Step 1: In No. of Bdl, pressing Enter moves focus to Item Select (or Qty)
+    // Auto-open #itemPacking select when it receives focus (cross-browser)
+    const itemPackingSelect = document.getElementById('itemPacking');
+    if (itemPackingSelect) {
+      itemPackingSelect.addEventListener('focus', function() {
+        const sel = this;
+        // showPicker() is the modern standard (Chrome 101+, Firefox 116+)
+        if (typeof sel.showPicker === 'function') {
+          try { sel.showPicker(); } catch(e) { /* not allowed without user gesture */ }
+        } else {
+          // Fallback: expand via size attribute
+          const origSize = sel.getAttribute('size');
+          sel.setAttribute('size', sel.options.length || 2);
+          sel.addEventListener('change', function onch() {
+            sel.setAttribute('size', origSize || 1);
+            sel.removeEventListener('change', onch);
+          }, { once: true });
+          sel.addEventListener('blur', function onbl() {
+            sel.setAttribute('size', origSize || 1);
+            sel.removeEventListener('blur', onbl);
+          }, { once: true });
+        }
+      });
+    }
+
+    // Step 1: In No. of Bdl, pressing Enter moves focus to Type select
     if (itemPackingQty) {
       itemPackingQty.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          if (itemSel) {
+          if (itemPackingSelect) {
+            itemPackingSelect.focus();
+          } else if (itemSel) {
             itemSel.focus();
           } else if (itemQty) {
             itemQty.focus();
