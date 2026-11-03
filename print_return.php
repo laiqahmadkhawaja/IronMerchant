@@ -394,21 +394,21 @@ $isThermal = ($size === '80' || $size === '58');
 
       <!-- Itemized Header (5 columns in one line: BDL/PC, ITEM, QTY, RATE, TOTAL) -->
       <div class="th-row th-meta" style="font-weight: 700; align-items: flex-end;">
-        <span style="width: 10%; text-align: left; line-height: 1.05;">BDL/<br>PC</span>
-        <span style="width: 30%; text-align: left; padding-right: 2px;">ITEM</span>
+        <span style="width: 9%; text-align: left; line-height: 1.05;">BDL/<br>PC</span>
+        <span style="width: 31%; text-align: left; padding-right: 2px;">ITEM</span>
         <span style="width: 18%; text-align: right; padding-right: 2px;">QTY</span>
         <span style="width: 16%; text-align: right; padding-right: 2px;">RATE</span>
         <span style="width: 26%; text-align: right;">TOTAL</span>
       </div>
       <div class="th-line"></div>
 
-      <!-- Items List (Single line per item, 5 columns, RTL protected, spacious gaps) -->
+      <!-- Items List (Wrapped item name, numeric packing count, RTL protected) -->
       <?php foreach ($items as $it): ?>
-        <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: baseline;">
-          <span style="width: 10%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            <bdi dir="auto"><?= (float)($it['packing_qty'] ?? 0) > 0 ? ((float)$it['packing_qty'] + 0) . ' ' : '' ?><?= (($it['packing_type'] ?? '') === 'Bundle') ? 'بنڈل' : 'نگ' ?></bdi>
+        <div class="th-row th-item-sub" style="margin-bottom: 4px; align-items: flex-start;">
+          <span style="width: 9%; text-align: left;" class="font-num">
+            <bdi dir="auto"><?= (float)($it['packing_qty'] ?? 0) > 0 ? ((float)$it['packing_qty'] + 0) : '-' ?></bdi>
           </span>
-          <span style="width: 30%; text-align: left; padding-right: 2px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span style="width: 31%; text-align: left; padding-right: 2px; line-height: 1.25; word-break: break-word;">
             <bdi dir="auto"><strong><?= htmlspecialchars($it['item_name']) ?></strong></bdi>
           </span>
           <span style="width: 18%; text-align: right; padding-right: 2px;" class="font-num"><bdi dir="ltr"><?= formatQty($it['qty'], $it['unit']) ?></bdi></span>
