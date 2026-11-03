@@ -412,7 +412,7 @@ $isThermal = ($size === '80' || $size === '58');
             <bdi dir="auto"><strong><?= htmlspecialchars($it['item_name']) ?></strong></bdi>
           </span>
           <span style="width: 17%; text-align: right; padding-right: 2px;" class="font-num"><bdi dir="ltr"><?= formatQty($it['qty'], $it['unit']) ?></bdi></span>
-          <span style="width: 16%; text-align: right; padding-right: 2px;" class="font-num"><?= number_format((float)$it['unit_rate'], 2) ?></span>
+          <span style="width: 16%; text-align: right; padding-right: 2px;" class="font-num"><?= number_format((float)$it['unit_rate']) ?></span>
           <span style="width: 24%; text-align: right;" class="font-num"><?= number_format((float)$it['line_total'], 2) ?></span>
         </div>
       <?php endforeach; ?>
@@ -421,35 +421,35 @@ $isThermal = ($size === '80' || $size === '58');
 
       <!-- Subtotals -->
       <div class="th-row th-meta" style="align-items: baseline;">
-        <span style="width: 43%; text-align: left;">Total Returned Qty:</span>
+        <span style="width: 43%; text-align: left;">Gds Value / Rtn Qty</span>
         <span style="width: 17%; text-align: right; padding-right: 2px;" class="font-num"><?= number_format((float)$ret['total_qty'], 2) ?> kg</span>
-        <span style="width: 40%;"></span>
+        <span style="width: 40%; text-align: right;" class="font-num"><?= number_format((float)$ret['subtotal'], 2) ?></span>
       </div>
-      <div class="th-row th-meta">
+      <!-- <div class="th-row th-meta">
         <span>Goods Value:</span>
         <span class="font-num"><?= number_format((float)$ret['subtotal'], 2) ?></span>
-      </div>
+      </div> -->
       <?php if ((float)($ret['labour_deduction'] ?? 0) > 0): ?>
-        <div class="th-row th-meta">
-          <span class="ur fw-bold">لوڈنگ کٹوتی:</span>
+        <div class="th-row th-meta" style="align-items: center;">
+          <span class="ur fw-bold" style="font-size: 13px;">لوڈنگ کٹوتی</span>
           <span class="font-num">− <?= number_format((float)$ret['labour_deduction'], 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ((float)($ret['cutting_deduction'] ?? 0) > 0): ?>
-        <div class="th-row th-meta">
-          <span class="ur fw-bold">کٹنگ کٹوتی:</span>
+        <div class="th-row th-meta" style="align-items: center;">
+          <span class="ur fw-bold" style="font-size: 13px;">کٹنگ کٹوتی</span>
           <span class="font-num">− <?= number_format((float)$ret['cutting_deduction'], 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ((float)($ret['freight_deduction'] ?? 0) > 0): ?>
-        <div class="th-row th-meta">
-          <span class="ur fw-bold">کرایہ کٹوتی:</span>
+        <div class="th-row th-meta" style="align-items: center;">
+          <span class="ur fw-bold" style="font-size: 13px;">کرایہ کٹوتی</span>
           <span class="font-num">− <?= number_format((float)$ret['freight_deduction'], 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ((float)$ret['deduction_charges'] > 0 && ((float)($ret['labour_deduction'] ?? 0) <= 0 && (float)($ret['freight_deduction'] ?? 0) <= 0 && (float)($ret['cutting_deduction'] ?? 0) <= 0)): ?>
-        <div class="th-row th-meta">
-          <span class="ur fw-bold">کٹوتیاں:</span>
+        <div class="th-row th-meta" style="align-items: center;">
+          <span class="ur fw-bold" style="font-size: 13px;">کٹوتیاں</span>
           <span class="font-num">− <?= number_format((float)$ret['deduction_charges'], 2) ?></span>
         </div>
       <?php endif; ?>

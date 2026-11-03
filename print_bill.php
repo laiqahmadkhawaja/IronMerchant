@@ -489,29 +489,29 @@ foreach ($items as $it) {
 
       <!-- Subtotals & Charges -->
       <div class="th-row th-meta" style="align-items: baseline;">
-        <span style="width: 43%; text-align: left;">Total Weight:</span>
+        <span style="width: 43%; text-align: left;">Items Subtotal:</span>
         <span style="width: 17%; text-align: right; padding-right: 2px;" class="font-num"><?= number_format($totalWeight, 2) ?> kg</span>
-        <span style="width: 40%;"></span>
+        <span style="width: 40%; text-align: right;" class="font-num"><?= number_format((float)$sale['subtotal'], 2) ?></span>
       </div>
-      <div class="th-row th-meta">
+      <!-- <div class="th-row th-meta">
         <span>Items Subtotal:</span>
         <span class="font-num"><?= number_format((float)$sale['subtotal'], 2) ?></span>
-      </div>
+      </div> -->
       <?php if ($labourAmount > 0): ?>
         <div class="th-row th-meta" style="align-items: center;">
-          <span class="ur fw-bold" style="font-size: 14px;">لوڈنگ:</span>
+          <span class="ur fw-bold" style="font-size: 14px;">لوڈنگ</span>
           <span class="font-num">+ <?= number_format($labourAmount, 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ($cuttingAmount > 0): ?>
         <div class="th-row th-meta" style="align-items: center;">
-          <span class="ur fw-bold" style="font-size: 14px;">کٹنگ:</span>
+          <span class="ur fw-bold" style="font-size: 14px;">کٹنگ</span>
           <span class="font-num">+ <?= number_format($cuttingAmount, 2) ?></span>
         </div>
       <?php endif; ?>
       <?php if ($deliveryAmount > 0): ?>
         <div class="th-row th-meta" style="align-items: center;">
-          <span class="ur fw-bold" style="font-size: 14px;">کرایہ:</span>
+          <span class="ur fw-bold" style="font-size: 14px;">کرایہ</span>
           <span class="font-num">+ <?= number_format($deliveryAmount, 2) ?></span>
         </div>
       <?php endif; ?>

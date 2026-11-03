@@ -129,7 +129,9 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
               $isOut = (float)$it['stock_qty'] <= 0;
             ?>
               <option value="<?= $it['id'] ?>" data-price="<?= $it['sale_price'] ?>" data-stock="<?= $it['stock_qty'] ?>" data-unit="<?= $it['unit'] ?>" data-name="<?= htmlspecialchars($it['name']) ?>" data-code="<?= htmlspecialchars($it['item_code'] ?? '') ?>">
-                <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
+                <!-- <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>) -->
+                <?= htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
+
               </option>
             <?php endforeach; ?>
           </select>
