@@ -116,7 +116,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
 
         <div class="col-6 col-sm-6 col-md-2">
           <label class="form-label">Type (نوعیت)</label>
-          <select id="itemPacking" class="form-select">
+          <select id="itemPacking" class="form-select" onfocus="this.click()">
             <option value="Bundle" selected>Bundle (بنڈل)</option>
             <option value="Piece">Pc (نگ)</option>
           </select>
