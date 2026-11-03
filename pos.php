@@ -773,6 +773,34 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       });
     }
 
+    // Auto-open #itemSelect (Product Name) when it receives focus (cross-browser)
+    if (itemSel) {
+      itemSel.addEventListener('focus', function() {
+        const sel = this;
+        if (typeof sel.showPicker === 'function') {
+          try { sel.showPicker(); } catch(e) {}
+        } else {
+          const origSize = sel.getAttribute('size');
+          sel.setAttribute('size', Math.min(sel.options.length || 2, 8));
+          sel.addEventListener('change', function onch() {
+            sel.setAttribute('size', origSize || 1);
+            sel.removeEventListener('change', onch);
+          }, { once: true });
+          sel.addEventListener('blur', function onbl() {
+            sel.setAttribute('size', origSize || 1);
+            sel.removeEventListener('blur', onbl);
+          }, { once: true });
+        }
+      });
+    }
+
+    // After selecting Type (Bundle/Piece), auto-move focus to Product Name
+    if (itemPackingSelect) {
+      itemPackingSelect.addEventListener('change', function() {
+        if (itemSel) { itemSel.focus(); }
+      });
+    }
+
     // Step 1: In No. of Bdl, pressing Enter moves focus to Type select
     if (itemPackingQty) {
       itemPackingQty.addEventListener('keydown', (e) => {
