@@ -52,7 +52,19 @@ $isSaleReturn = ($ret['return_type'] === 'sale_return');
 $docTitle = $isSaleReturn ? 'CREDIT NOTE (کریڈٹ نوٹ برائے گاہک)' : 'DEBIT NOTE (ڈیبٹ نوٹ برائے سپلائر)';
 $docBadge = $isSaleReturn ? 'Sales Return / واپسی مال فروخت' : 'Purchase Return / واپسی خریداری';
 
-$size = trim((string)($_GET['size'] ?? 'A4'));
+$size = trim((string)($_GET['size'] ?? ''));
+if ($size === '') {
+    $defaultFormat = $company['receipt_default_size'] ?? 'A4';
+    if ($defaultFormat === '80' || $defaultFormat === 'thermal') {
+        $size = '80';
+    } elseif ($defaultFormat === '58') {
+        $size = '58';
+    } elseif (strcasecmp($defaultFormat, 'a5') === 0) {
+        $size = 'A5';
+    } else {
+        $size = 'A4';
+    }
+}
 $isThermal = ($size === '80' || $size === '58');
 ?>
 <!DOCTYPE html>
@@ -112,12 +124,26 @@ $isThermal = ($size === '80' || $size === '58');
     }
     .note-sheet {
       background: #fff;
-      max-width: 860px;
       margin: 0 auto;
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
       border-radius: 6px;
+      overflow: hidden;
       padding: 28px;
-      min-height: 980px;
+    }
+    .note-sheet.size-A4 {
+      max-width: 860px;
+      min-height: 1020px;
+      font-size: 12px;
+    }
+    .note-sheet.size-A5 {
+      max-width: 650px;
+      padding: 18px 22px;
+      font-size: 11px;
+    }
+    .note-sheet.size-A5 .table-note th,
+    .note-sheet.size-A5 .table-note td {
+      padding: 4px 8px;
+      font-size: 10.5px;
     }
     .table-note {
       width: 100%;
@@ -291,8 +317,8 @@ $isThermal = ($size === '80' || $size === '58');
           border: 1px solid #333 !important;
         }
         @page {
-          size: A4 portrait;
-          margin: 10mm 8mm 12mm 8mm;
+          size: <?= $size === 'A5' ? 'A5 landscape' : 'A4 portrait' ?>;
+          margin: 8mm 8mm 10mm 8mm;
         }
       <?php endif; ?>
     }
@@ -309,6 +335,7 @@ $isThermal = ($size === '80' || $size === '58');
     <div class="d-flex align-items-center gap-2">
       <select class="form-select form-select-sm" style="width: auto; font-weight: 600;" onchange="window.location.href='print_return.php?id=<?= $ret['id'] ?>&size='+this.value">
         <option value="A4" <?= $size === 'A4' ? 'selected' : '' ?>>A4 Full Sheet (معیاری رسید)</option>
+        <option value="A5" <?= $size === 'A5' ? 'selected' : '' ?>>A5 Half Sheet (ہاف شیٹ)</option>
         <option value="80" <?= $size === '80' ? 'selected' : '' ?>>Thermal 80mm · 3" (72mm ڈتھ)</option>
         <option value="58" <?= $size === '58' ? 'selected' : '' ?>>Thermal 58mm · 2" (48mm ڈتھ)</option>
       </select>
@@ -466,33 +493,51 @@ $isThermal = ($size === '80' || $size === '58');
 
   <?php else: ?>
     <!-- Note Printable Sheet (A4) -->
-    <div class="note-sheet">
+    <div class="note-sheet size-<?= $size ?>">
 
     <!-- Letterhead -->
     <div style="border-bottom: 3px solid #14307a; padding-bottom: 12px; margin-bottom: 14px;">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-          <img src="assets/images/logo.png" alt="Logo" style="width: 65px; height: 65px; object-fit: contain;">
-          <div>
-            <div class="ur" dir="rtl" style="color: #14307a; font-size: 24px; font-weight: 700; line-height: 1.8; margin-bottom: 2px;">
-              <?= htmlspecialchars($compUrdu) ?>
-            </div>
-            <h4 class="mb-0" style="font-weight: 800; color: #14307a; letter-spacing: 0.5px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;">
+        <!-- Left: Logo & English Branding -->
+        <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1 1 auto; min-width: 0;">
+          <img src="assets/images/logo.png" alt="Logo" style="width: <?= $size === 'A5' ? '54px' : '68px' ?>; height: <?= $size === 'A5' ? '54px' : '68px' ?>; object-fit: contain; flex-shrink: 0; margin-top: 2px;">
+          <div style="min-width: 0;">
+            <h4 class="mb-0" style="font-weight: 800; color: #14307a; letter-spacing: 0.5px; font-size: <?= $size === 'A5' ? '18px' : '22px' ?>; line-height: 1.2;">
               <?= htmlspecialchars($compName) ?>
             </h4>
-            <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 2px;">
-              Gujranwala Steel Group of Industry · Prime Re-Rolled Steel Bars &amp; Structural Materials
+            <div style="font-size: <?= $size === 'A5' ? '11px' : '12px' ?>; color: #1e293b; font-weight: 700; margin-top: 3px;">
+              <?= htmlspecialchars($company['company_tagline'] ?? 'Gujranwala Steel Group of Industry') ?>
+            </div>
+            <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #64748b; font-weight: 600; margin-top: 2px;">
+              گول سریا، چورس سریا، ڈیفارم سریا، اینگل آئرن، پٹی آئرن، زیڈ سیکشن
+            </div>
+            <div style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; color: #475569; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+              <i class="fa-solid fa-location-dot text-primary" style="flex-shrink: 0;"></i>
+              <span><?= htmlspecialchars($compAddress) ?></span>
             </div>
           </div>
         </div>
-        <div class="text-end" style="font-size: 11.5px; line-height: 1.6;">
-          <?php if (!empty($compLandline)): ?>
-            <div><i class="fa-solid fa-phone me-1 text-primary"></i> <strong><?= htmlspecialchars($compLandline) ?></strong></div>
+
+        <!-- Right: Urdu Name, Motto, Contact & Return Badge -->
+        <div style="flex: 0 0 auto; text-align: right; max-width: <?= $size === 'A5' ? '46%' : '44%' ?>;">
+          <div class="ur" dir="rtl" style="color: #14307a; font-size: <?= $size === 'A5' ? '22px' : '26px' ?>; font-weight: 700; line-height: 1.35; margin-bottom: 2px;">
+            <?= htmlspecialchars($compUrdu) ?>
+          </div>
+          <?php if (!empty($company['company_motto_urdu'])): ?>
+            <div class="ur text-muted" dir="rtl" style="font-size: <?= $size === 'A5' ? '10px' : '11px' ?>; line-height: 1.4; margin-bottom: 3px;">
+              <?= htmlspecialchars($company['company_motto_urdu']) ?>
+            </div>
           <?php endif; ?>
-          <div><i class="fa-solid fa-mobile-screen me-1 text-primary"></i> <?= htmlspecialchars($compPhone) ?></div>
-          <div><i class="fa-solid fa-location-dot me-1 text-primary"></i> <?= htmlspecialchars($compAddress) ?></div>
-          <div class="badge bg-danger text-uppercase mt-1" style="font-size: 10.5px; letter-spacing: 0.5px; padding: 4px 8px;">
-            <?= htmlspecialchars($docBadge) ?>
+          <div style="font-size: <?= $size === 'A5' ? '10.5px' : '11.5px' ?>; line-height: 1.5; color: #1e293b; margin-top: 3px;">
+            <?php if (!empty($compLandline)): ?>
+              <div><i class="fa-solid fa-phone text-primary me-1"></i> <strong><?= htmlspecialchars($compLandline) ?></strong></div>
+            <?php endif; ?>
+            <div><i class="fa-solid fa-mobile-screen text-primary me-1"></i> <?= htmlspecialchars($compPhone) ?></div>
+          </div>
+          <div class="mt-2">
+            <span class="badge bg-danger text-uppercase" style="font-size: <?= $size === 'A5' ? '9.5px' : '10.5px' ?>; letter-spacing: 0.5px; padding: 4px 9px; font-weight: 700; box-shadow: 0 1px 3px rgba(185,28,28,0.25);">
+              <i class="fa-solid fa-rotate-left me-1"></i> <?= htmlspecialchars($docBadge) ?>
+            </span>
           </div>
         </div>
       </div>
