@@ -108,21 +108,24 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
         <span class="badge bg-light text-secondary border" style="font-size: 11px;">Shortcut: <kbd>F1</kbd></span>
       </div>
 
-      <div class="row g-2 align-items-end mb-3">
-        <div class="col-6 col-sm-6 col-md-2">
+      <!-- Row 1: No. of Bdl + Type -->
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-6">
           <label class="form-label">No. of Bdl (تعداد)</label>
           <input type="number" id="itemPackingQty" class="form-control" placeholder="e.g. 5" step="any" min="0">
         </div>
-
-        <div class="col-6 col-sm-6 col-md-2">
+        <div class="col-6">
           <label class="form-label">Type (نوعیت)</label>
           <select id="itemPacking" class="form-select">
             <option value="Bundle" selected>Bundle (بنڈل)</option>
             <option value="Piece">Pc (نگ)</option>
           </select>
         </div>
+      </div>
 
-        <div class="col-12 col-sm-6 col-md-3">
+      <!-- Row 2: Product Name full width -->
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-12">
           <label class="form-label">Product Name</label>
           <select id="itemSelect" class="form-select" onchange="onItemSelectChange()">
             <?php foreach ($items as $it): 
@@ -136,18 +139,19 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             <?php endforeach; ?>
           </select>
         </div>
+      </div>
 
-        <div class="col-6 col-sm-4 col-md-2">
+      <!-- Row 3: Weight + Rate + Add button -->
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-5">
           <label class="form-label">Weight (kg)</label>
           <input type="number" id="itemQty" class="form-control" placeholder="e.g. 500" step="any">
         </div>
-
-        <div class="col-6 col-sm-4 col-md-2">
+        <div class="col-5">
           <label class="form-label">Rate (Rs/kg)</label>
           <input type="number" id="itemRate" class="form-control" placeholder="Rate" step="any">
         </div>
-
-        <div class="col-12 col-sm-4 col-md-1">
+        <div class="col-2">
           <button type="button" class="btn btn-zb-gold w-100 fw-bold px-1" id="addItemBtn" onclick="addItemToCart()" title="Add to Bill">
             <i class="fa-solid fa-plus me-1"></i>
           </button>
@@ -749,47 +753,21 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       itemSel.focus();
     }
 
-    // Auto-open #itemPacking select when it receives focus (cross-browser)
+    // Auto-open #itemPacking select when it receives focus
     const itemPackingSelect = document.getElementById('itemPacking');
     if (itemPackingSelect) {
       itemPackingSelect.addEventListener('focus', function() {
-        const sel = this;
-        // showPicker() is the modern standard (Chrome 101+, Firefox 116+)
-        if (typeof sel.showPicker === 'function') {
-          try { sel.showPicker(); } catch(e) { /* not allowed without user gesture */ }
-        } else {
-          // Fallback: expand via size attribute
-          const origSize = sel.getAttribute('size');
-          sel.setAttribute('size', sel.options.length || 2);
-          sel.addEventListener('change', function onch() {
-            sel.setAttribute('size', origSize || 1);
-            sel.removeEventListener('change', onch);
-          }, { once: true });
-          sel.addEventListener('blur', function onbl() {
-            sel.setAttribute('size', origSize || 1);
-            sel.removeEventListener('blur', onbl);
-          }, { once: true });
+        if (typeof this.showPicker === 'function') {
+          try { this.showPicker(); } catch(e) {}
         }
       });
     }
 
-    // Auto-open #itemSelect (Product Name) when it receives focus (cross-browser)
+    // Auto-open #itemSelect (Product Name) when it receives focus
     if (itemSel) {
       itemSel.addEventListener('focus', function() {
-        const sel = this;
-        if (typeof sel.showPicker === 'function') {
-          try { sel.showPicker(); } catch(e) {}
-        } else {
-          const origSize = sel.getAttribute('size');
-          sel.setAttribute('size', Math.min(sel.options.length || 2, 8));
-          sel.addEventListener('change', function onch() {
-            sel.setAttribute('size', origSize || 1);
-            sel.removeEventListener('change', onch);
-          }, { once: true });
-          sel.addEventListener('blur', function onbl() {
-            sel.setAttribute('size', origSize || 1);
-            sel.removeEventListener('blur', onbl);
-          }, { once: true });
+        if (typeof this.showPicker === 'function') {
+          try { this.showPicker(); } catch(e) {}
         }
       });
     }
