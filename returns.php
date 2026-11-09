@@ -640,7 +640,7 @@ $activeShift = getActiveShift($pdo);
                 <option value="">-- Select Customer --</option>
                 <?php foreach ($customers as $c): ?>
                   <option value="<?= $c['id'] ?>">
-                    <?= htmlspecialchars($c['name']) ?> (Bal: <?= formatMoney($c['current_balance']) ?>)
+                    <?= htmlspecialchars($c['name']) ?>
                   </option>
                 <?php endforeach; ?>
               </select>
@@ -653,7 +653,7 @@ $activeShift = getActiveShift($pdo);
                 <option value="">-- Select Supplier --</option>
                 <?php foreach ($suppliers as $s): ?>
                   <option value="<?= $s['id'] ?>">
-                    <?= htmlspecialchars($s['name']) ?> (Payable: <?= formatMoney($s['current_balance']) ?>)
+                    <?= htmlspecialchars($s['name']) ?>
                   </option>
                 <?php endforeach; ?>
               </select>
@@ -670,7 +670,7 @@ $activeShift = getActiveShift($pdo);
                           data-cost="<?= $it['cost_price'] ?>" 
                           data-sale="<?= $it['sale_price'] ?>"
                           data-unit="<?= $it['unit'] ?>">
-                    <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> [Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?> | W-Avg Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>]
+                    <?= htmlspecialchars($it['name']) ?>
                   </option>
                 <?php endforeach; ?>
               </select>

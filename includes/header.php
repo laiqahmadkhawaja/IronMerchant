@@ -187,94 +187,88 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
 </script>
 <script>
 
-// ── Searchable Select Utility ──────────────────────────────
-// Adds a live-filter text input above any <select>.
-// Usage: makeSearchableSelect(selectElement, { placeholder, onEnter })
-function makeSearchableSelect(sel, opts) {
+// ── Inline Searchable Select (keyboard type-to-search, no extra input box) ──
+function makeSearchableSelect(sel) {
   if (!sel || sel.__searchable) return;
   sel.__searchable = true;
-  opts = opts || {};
 
-  // Cache master option list
+  // Build master list once
   var master = [];
   for (var i = 0; i < sel.options.length; i++) {
     var o = sel.options[i];
-    var dKeys = Object.keys(o.dataset);
     var dObj = {};
-    dKeys.forEach(function(k){ dObj[k] = o.dataset[k]; });
+    if (o.dataset) {
+      var keys = Object.keys(o.dataset);
+      for (var ki = 0; ki < keys.length; ki++) dObj[keys[ki]] = o.dataset[keys[ki]];
+    }
     master.push({ value: o.value, text: o.textContent.trim(), data: dObj });
   }
 
-  // Create search input
-  var inp = document.createElement('input');
-  inp.type = 'text';
-  inp.className = 'form-control searchable-sel-inp mb-1';
-  inp.placeholder = opts.placeholder || 'Search...';
-  inp.autocomplete = 'off';
-  inp.spellcheck = false;
-  sel.parentNode.insertBefore(inp, sel);
+  var searchStr = '';
+  var searchTimer = null;
 
   function rebuildOptions(q) {
-    var qLow = (q || '').toLowerCase();
-    var filtered = qLow
-      ? master.filter(function(m){ return m.text.toLowerCase().indexOf(qLow) !== -1; })
+    var qLow = q.toLowerCase();
+    var filtered = qLow.length
+      ? master.filter(function(m) { return m.text.toLowerCase().indexOf(qLow) !== -1; })
       : master;
     while (sel.options.length) sel.remove(0);
-    filtered.forEach(function(m) {
+    for (var fi = 0; fi < filtered.length; fi++) {
+      var m = filtered[fi];
       var o = document.createElement('option');
       o.value = m.value;
       o.textContent = m.text;
-      Object.keys(m.data).forEach(function(k){ o.dataset[k] = m.data[k]; });
+      var dk = Object.keys(m.data);
+      for (var di = 0; di < dk.length; di++) o.dataset[dk[di]] = m.data[dk[di]];
       sel.appendChild(o);
-    });
+    }
     if (sel.options.length > 0) {
       sel.selectedIndex = 0;
-      sel.dispatchEvent(new Event('change'));
+      try { sel.dispatchEvent(new Event('change')); } catch(ex) {}
     }
+    sel.title = qLow ? ('Search: ' + q + ' | Esc to clear') : '';
   }
 
-  inp.addEventListener('input', function() {
-    rebuildOptions(this.value);
-  });
-
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      sel.focus();
-      if (typeof sel.showPicker === 'function') {
-        try { sel.showPicker(); } catch(ex) {}
-      }
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (opts.onEnter) opts.onEnter();
-    }
-    if (e.key === 'Escape') {
-      inp.value = '';
-      rebuildOptions('');
-    }
-  });
-
-  // ArrowUp at top of select -> return focus to search input
   sel.addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowUp' && sel.selectedIndex === 0) {
+    var k = e.key;
+    if (k === 'Escape') {
       e.preventDefault();
-      inp.focus();
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (opts.onEnter) opts.onEnter();
-    }
-    if (e.key === 'Escape') {
-      inp.value = '';
+      searchStr = '';
       rebuildOptions('');
-      inp.focus();
+      return;
+    }
+    if (k === 'Backspace') {
+      e.preventDefault();
+      searchStr = searchStr.slice(0, -1);
+      rebuildOptions(searchStr);
+      return;
+    }
+    if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Tab' || k === 'Enter') {
+      return;
+    }
+    if (k.length === 1) {
+      e.preventDefault();
+      searchStr += k;
+      rebuildOptions(searchStr);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function() { searchStr = ''; sel.title = ''; }, 2000);
     }
   });
 }
-// ── End Searchable Select Utility ───────────────────────────
+
+// Auto-init all selects with more than 5 options throughout the system
+document.addEventListener('DOMContentLoaded', function() {
+  var selects = document.querySelectorAll('select');
+  for (var i = 0; i < selects.length; i++) {
+    if (selects[i].options.length > 5) {
+      makeSearchableSelect(selects[i]);
+    }
+  }
+});
+// ── End Inline Searchable Select ─────────────────────────────
 
 </script>
+
 
 
 <div class="app-wrapper">

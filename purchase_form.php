@@ -91,7 +91,7 @@ $activeShift = getActiveShift($db);
       <label class="form-label">Supplier / Steel Mill (سپلائر مل کا نام)</label>
       <select id="purSupplier" class="form-select">
         <?php foreach ($suppliers as $s): ?>
-          <option value="<?= $s['id'] ?>" <?= ($editPur && (int)$s['id'] === (int)$editPur['supplier_id']) ? 'selected' : '' ?>><?= htmlspecialchars($s['name']) ?> (Payable: <?= formatMoney($s['current_balance']) ?>)</option>
+          <option value="<?= $s['id'] ?>" <?= ($editPur && (int)$s['id'] === (int)$editPur['supplier_id']) ? 'selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
         <?php endforeach; ?>
       </select>
     </div>
@@ -115,7 +115,7 @@ $activeShift = getActiveShift($db);
         <select id="purItemSelect" class="form-select">
           <?php foreach ($items as $it): ?>
             <option value="<?= $it['id'] ?>" data-unit="<?= $it['unit'] ?>" data-cost="<?= $it['cost_price'] ?>" data-name="<?= htmlspecialchars($it['name']) ?>">
-              <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Current Cost: Rs <?= number_format((float)$it['cost_price'], 2) ?>/kg)
+              <?= htmlspecialchars($it['name']) ?>
             </option>
           <?php endforeach; ?>
         </select>

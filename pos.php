@@ -133,8 +133,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
             ?>
               <option value="<?= $it['id'] ?>" data-price="<?= $it['sale_price'] ?>" data-stock="<?= $it['stock_qty'] ?>" data-unit="<?= $it['unit'] ?>" data-name="<?= htmlspecialchars($it['name']) ?>" data-code="<?= htmlspecialchars($it['item_code'] ?? '') ?>">
                 <!-- <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>) -->
-                <?= htmlspecialchars($it['name']) ?> (Stock: <?= formatQty($it['stock_qty'], $it['unit']) ?><?= ($isOut && !$allowNegativeStock) ? ' - Out of Stock' : '' ?>)
-
+                <?= htmlspecialchars($it['name']) ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -212,7 +211,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
               }
             ?>
               <option value="<?= $c['id'] ?>" data-name="<?= htmlspecialchars($c['name']) ?>" data-balance="<?= $c['current_balance'] ?>" data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>" data-is-walkin="<?= $isWalkIn ? '1' : '0' ?>" <?= $selectedAttr ?>>
-                <?= htmlspecialchars($c['name']) ?> (<?= formatMoney($c['current_balance']) ?>)
+                <?= htmlspecialchars($c['name']) ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -779,7 +778,6 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       });
     }
 
-    // #itemSelect search handled by makeSearchableSelect() below
 
     // After selecting Type (Bundle/Piece), auto-move focus to Product Name
     if (itemPackingSelect) {

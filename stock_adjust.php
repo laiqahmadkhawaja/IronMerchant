@@ -205,7 +205,7 @@ require_once __DIR__ . '/includes/header.php';
                     data-cost="<?= (float)$it['cost_price'] ?>"
                     data-unit="<?= htmlspecialchars($it['unit']) ?>"
                     <?= ($preselectedItemId === (int)$it['id']) ? 'selected' : '' ?>>
-                    <?= (!empty($it['item_code']) ? '[' . htmlspecialchars($it['item_code']) . '] ' : '') . htmlspecialchars($it['name']) ?> - Current: <?= number_format((float)$it['stock_qty'], 1) ?> <?= htmlspecialchars($it['unit']) ?>
+                    <?= htmlspecialchars($it['name']) ?>
                   </option>
                 <?php endforeach; ?>
               </select>
