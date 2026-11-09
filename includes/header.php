@@ -144,6 +144,35 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
   }
 
   // Auto-bind any data-filter-accounts-for elements on DOM ready
+  
+  /**
+   * Automatically open select dropdown picker whenever it becomes active (focused)
+   */
+  let _selectPointerDown = false;
+  document.addEventListener('pointerdown', function(e) {
+    if (e.target && e.target.tagName === 'SELECT') {
+      _selectPointerDown = true;
+      setTimeout(() => { _selectPointerDown = false; }, 300);
+    }
+  }, true);
+
+  function autoOpenSelectPicker(el) {
+    if (!el || el.tagName !== 'SELECT') return;
+    try {
+      if (typeof el.showPicker === 'function') {
+        el.showPicker();
+      }
+    } catch (err) {}
+  }
+
+  document.addEventListener('focusin', function(e) {
+    if (e.target && e.target.tagName === 'SELECT') {
+      if (!_selectPointerDown) {
+        autoOpenSelectPicker(e.target);
+      }
+    }
+  }, true);
+
   document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-filter-accounts-for]').forEach(methodEl => {
       const selector = methodEl.getAttribute('data-filter-accounts-for');
@@ -156,6 +185,97 @@ $companyUrdu = (!empty($companySettings['company_urdu']) && strpos($companySetti
     });
   });
 </script>
+<script>
+
+// ── Searchable Select Utility ──────────────────────────────
+// Adds a live-filter text input above any <select>.
+// Usage: makeSearchableSelect(selectElement, { placeholder, onEnter })
+function makeSearchableSelect(sel, opts) {
+  if (!sel || sel.__searchable) return;
+  sel.__searchable = true;
+  opts = opts || {};
+
+  // Cache master option list
+  var master = [];
+  for (var i = 0; i < sel.options.length; i++) {
+    var o = sel.options[i];
+    var dKeys = Object.keys(o.dataset);
+    var dObj = {};
+    dKeys.forEach(function(k){ dObj[k] = o.dataset[k]; });
+    master.push({ value: o.value, text: o.textContent.trim(), data: dObj });
+  }
+
+  // Create search input
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'form-control searchable-sel-inp mb-1';
+  inp.placeholder = opts.placeholder || 'Search...';
+  inp.autocomplete = 'off';
+  inp.spellcheck = false;
+  sel.parentNode.insertBefore(inp, sel);
+
+  function rebuildOptions(q) {
+    var qLow = (q || '').toLowerCase();
+    var filtered = qLow
+      ? master.filter(function(m){ return m.text.toLowerCase().indexOf(qLow) !== -1; })
+      : master;
+    while (sel.options.length) sel.remove(0);
+    filtered.forEach(function(m) {
+      var o = document.createElement('option');
+      o.value = m.value;
+      o.textContent = m.text;
+      Object.keys(m.data).forEach(function(k){ o.dataset[k] = m.data[k]; });
+      sel.appendChild(o);
+    });
+    if (sel.options.length > 0) {
+      sel.selectedIndex = 0;
+      sel.dispatchEvent(new Event('change'));
+    }
+  }
+
+  inp.addEventListener('input', function() {
+    rebuildOptions(this.value);
+  });
+
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      sel.focus();
+      if (typeof sel.showPicker === 'function') {
+        try { sel.showPicker(); } catch(ex) {}
+      }
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (opts.onEnter) opts.onEnter();
+    }
+    if (e.key === 'Escape') {
+      inp.value = '';
+      rebuildOptions('');
+    }
+  });
+
+  // ArrowUp at top of select -> return focus to search input
+  sel.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowUp' && sel.selectedIndex === 0) {
+      e.preventDefault();
+      inp.focus();
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (opts.onEnter) opts.onEnter();
+    }
+    if (e.key === 'Escape') {
+      inp.value = '';
+      rebuildOptions('');
+      inp.focus();
+    }
+  });
+}
+// ── End Searchable Select Utility ───────────────────────────
+
+</script>
+
 
 <div class="app-wrapper">
   <!-- Modular Sidebar Navigation -->

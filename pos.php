@@ -753,6 +753,22 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       itemSel.focus();
     }
 
+    // ── Searchable selects: Product Name + Customer ──────────
+    makeSearchableSelect(itemSel, {
+      placeholder: "Search product...",
+      onEnter: function() {
+        var qty = document.getElementById("itemQty");
+        if (qty) { qty.focus(); qty.select(); }
+      }
+    });
+    makeSearchableSelect(custSel, {
+      placeholder: "Search customer...",
+      onEnter: function() {
+        var paid = document.getElementById("paidAmount");
+        if (paid) { paid.focus(); paid.select(); }
+      }
+    });
+
     // Auto-open #itemPacking select when it receives focus
     const itemPackingSelect = document.getElementById('itemPacking');
     if (itemPackingSelect) {
@@ -763,14 +779,7 @@ $allowNegativeStock = ($companySettings['allow_negative_stock'] ?? '0') === '1';
       });
     }
 
-    // Auto-open #itemSelect (Product Name) when it receives focus
-    if (itemSel) {
-      itemSel.addEventListener('focus', function() {
-        if (typeof this.showPicker === 'function') {
-          try { this.showPicker(); } catch(e) {}
-        }
-      });
-    }
+    // #itemSelect search handled by makeSearchableSelect() below
 
     // After selecting Type (Bundle/Piece), auto-move focus to Product Name
     if (itemPackingSelect) {
